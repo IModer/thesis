@@ -1,4 +1,9 @@
-target
+# Haskell build files
 dist-newstyle
-*.pdf
+
+# Mics
 *.token
+*.pdf
+
+# deprecated Rust project
+poly_lang_rust
