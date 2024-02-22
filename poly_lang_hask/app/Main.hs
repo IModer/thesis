@@ -5,7 +5,7 @@ import Control.Monad (unless)
 -- Saját imports
 
 import Core
-import Number
+import Ring
 
 main :: IO ()
 main = do
