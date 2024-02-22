@@ -54,7 +54,9 @@ Inspiration:
 
 Esetleges egységes típusosztály (Number where (+), (*), ...)
 
-Nat - Saját data vagy valami beépített ha van
+--Nat - Saját data vagy valami beépített ha van
+
+Ez elhagyahtó mert nem alkotnak még csoportot sem
 
 Int - Integer (Végtelen nagy is lehet, már vannak rá megírt függvények)
 
@@ -159,36 +161,3 @@ deriválás
 Core lang impl: https://github.com/AndrasKovacs/elaboration-zoo/tree/master/01-eval-HOAS-names
 
 Factor algorithm : https://hackage.haskell.org/package/factor and K.O.Geddes et. al.- Algorithms for Computer Algebra
-
-### Trash
-
-```bnf
-<poly_ident> ::= [a-z] | <Gident>
-<symbolic_const> ::= "e" | "pi" | "π" | <sqrt>
-<sqrt> ::= ("√" | "sqrt") <whitespace>* <nat_number>
-<nat_number> ::= [0-9]+
-<number> ::= (<nat_number>)? "."? <nat_number>
-```
-
----
-
-Or with subtypting:
-
-```text
-Number :> RR symbolic :> RR floating
-                         RR floating :> QQ floating
-          RR symbolic :> QQ symbolic 
-                         QQ symbolic :> QQ floating
-                         QQ symbolic :> ZZ :> ZZ mod n
-
-Poly<Number> :> QuotientPoly<Number><f> where f : Poly<Number>
-```
-
-## Rust
-
-CASs in rust:
-
-- [ncas](https://github.com/gitnlsn/ncas)
-- [bullet](https://github.com/s3bk/bullet)
-- [forum discussion about CASs in Rust](https://users.rust-lang.org/t/computer-algebra-system-in-rust/49016/27)
-- [nalgebra](https://www.nalgebra.org) : **NOT CAS**, but a linear algebra library for Rust
