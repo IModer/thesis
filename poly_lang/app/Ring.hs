@@ -38,12 +38,19 @@ instance Ring Integer where
 -- Rational
 -- https://wiki.haskell.org/Rational
 
+-- Ask : why'
+{-
+    All instance types must be of the form (T t1 ... tn)
+    where T is not a synonym.
+    Use TypeSynonymInstances if you want to disable this.
+
 instance Ring Rational where
     zero = 0
     plus = (+)
     neg  = ((-) 0)
     one  = 1
     mul  = (*)
+-}
 
 -- Rational functions here if needed
 
@@ -62,12 +69,14 @@ instance Ring Double where
 --Complex
 --https://hackage.haskell.org/package/base-4.19.0.0/docs/Data-Complex.html
 
-instance Ring (Complex Double) where
+{- Ask
+instance Ring (Complex a) where
     zero = 0
     plus = (+)
     neg  = ((-) 0)
     one  = 1
     mul  = (*)
+-}
 
 {- 
 Nat

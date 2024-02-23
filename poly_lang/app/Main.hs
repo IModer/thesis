@@ -60,9 +60,10 @@ runRepl = do
       >> runRepl
 
 read_ :: IO String
-read_ = putStr "poly> "
-     >> hFlush stdout
-     >> getLine
+read_ = do
+    putStr "poly> "
+    hFlush stdout
+    getLine
 
 --eval_ :: String -> String
 -- Handle repl option like : :q - quit, :h - help, ...
