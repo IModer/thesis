@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wincomplete-patterns #-}
+{-# LANGUAGE LambdaCase, ViewPatterns #-}
 module Core where
 
 import Data.Maybe
@@ -25,6 +27,10 @@ data TTm
     | TApp TTm TTm
     | TLet Name TTm TTm
     | TLit Literal
+    | TPlus TTm TTm         -- (i: Int)   +  (j : Int)
+    | TTimes TTm TTm        -- (i: Int)   *  (j : Int)
+    | TAnd  TTm TTm         -- (b : Bool) && (l :Bool)
+    | TOr  TTm TTm          -- (b : Bool) || (l :Bool)
     deriving Show
 
 data Type 
@@ -39,40 +45,63 @@ type TEnv = [(Name, Type)]
 
 -- TODO: Proper Error monad instead of Maybe
 typeCheck :: TEnv -> TTm -> Maybe Type
-typeCheck _ (TLit (LInt  a)) = Just TInt
-typeCheck _ (TLit (LBool a)) = Just TBool
-typeCheck env (TVar x) = (lookup x env)
-typeCheck env (TLam x t e) = case (typeCheck ((x,t):env) e) of
-    Just t' -> Just $ TArr t t'
-    Nothing -> Nothing
-typeCheck env (TApp e1 e2) = do
+typeCheck env = \case
+    TLit (LInt  a) -> Just TInt
+    TLit (LBool a) -> Just TBool
+    TVar x         -> (lookup x env)
+    TLet x e u     -> do
+        t <- typeCheck env e
+        typeCheck ((x,t):env) u
+    TLam x t e     -> do
+        t' <- typeCheck ((x,t):env) e
+        return $ TArr t t'
+    TApp e1 e2     -> do
+        t1 <- typeCheck env e1
+        t2 <- typeCheck env e2
+        case t1 of
+            (TArr t t') | t == t2 -> return t'
+            (TArr t _)            -> Nothing
+            ty                    -> Nothing
+    TPlus e1 e2    -> bothTypesEqual env e1 e2 TInt
+    TTimes e1 e2   -> bothTypesEqual env e1 e2 TInt
+    TAnd e1 e2     -> bothTypesEqual env e1 e2 TBool
+    TOr e1 e2      -> bothTypesEqual env e1 e2 TBool
+
+bothTypesEqual :: TEnv -> TTm -> TTm -> Type -> Maybe Type
+bothTypesEqual env e1 e2 t  = do
     t1 <- typeCheck env e1
     t2 <- typeCheck env e2
-    case t1 of
-        (TArr t t') | t == t2 -> return t'
-        (TArr t _)            -> Nothing
-        ty                    -> Nothing
+    if t1 == t then (if t2 == t then Just t else Nothing) else Nothing
 
 loseType :: TTm -> Tm
-loseType (TVar n)     = Var n
-loseType (TLam n t e) = Lam n (loseType e)
-loseType (TApp t u)   = App (loseType t) (loseType u)
-loseType (TLet n t u) = Let n (loseType t) (loseType u)
-loseType (TLit l)     = Lit l
+loseType = \case
+    TVar n     -> Var n
+    TLam n t e -> Lam n (loseType e)
+    TApp t u   -> App (loseType t) (loseType u)
+    TLet n t u -> Let n (loseType t) (loseType u)
+    TLit l     -> Lit l
+    TPlus t u  -> Plus (loseType t) (loseType u)
+    TAnd t u   -> And (loseType t) (loseType u)
+    TTimes t u -> Times (loseType t) (loseType u)
+    TOr t u    -> Or (loseType t) (loseType u)
 
 ---
 
-data Tm 
+data Tm
     = Var Name
     | Lam Name Tm
     | App Tm Tm
     | Let Name Tm Tm
     | Lit Literal
+    | Plus Tm Tm
+    | Times Tm Tm
+    | And Tm Tm
+    | Or Tm Tm
     deriving Show
 
 data Literal
     = LInt Int
-    | LBool Bool 
+    | LBool Bool
     deriving Show
 
 type Env = [(Name, Val)]
@@ -86,8 +115,8 @@ data Val
 --- Evaluation
 
 freshName :: [Name] -> Name -> Name
-freshName ns x = if elem x ns 
-                    then freshName ns (x ++ "'") 
+freshName ns x = if elem x ns
+                    then freshName ns (x ++ "'")
                     else x
 
 vLamApp :: Val -> Val -> Val
@@ -95,28 +124,41 @@ vLamApp (VLam _ t) u = t u
 vLamApp t          u = VApp t u
 
 evalTerm :: Env -> Tm -> Val
-evalTerm env (Var n)     = fromJust $ lookup n env  --TODO : not fromJust
-evalTerm env (App t u)   = vLamApp (evalTerm env t) (evalTerm env u)
-evalTerm env (Lam n t)   = VLam n (\u -> evalTerm ((n, u):env) t)
-evalTerm env (Let n t u) = evalTerm ((n, evalTerm env t):env) u
-evalTerm env (Lit l)     = VLit l
+evalTerm env = \case
+    Var n                                   -> fromJust $ lookup n env -- NOTE: fromJust is safe
+    App t u                                 -> vLamApp (evalTerm env t) (evalTerm env u)
+    Lam n t                                 -> VLam n (\u -> evalTerm ((n, u):env) t)
+    Let n t u                               -> evalTerm ((n, evalTerm env t):env) u
+    Lit l                                   -> VLit l
+    Plus  (Lit (LInt i))   (Lit (LInt j))   -> VLit $ LInt $ i + j
+    Times (Lit (LInt i))   (Lit (LInt j))   -> VLit $ LInt $ i * j
+    And   (Lit (LBool b1)) (Lit (LBool b2)) -> VLit $ LBool $ b1 && b2
+    Or    (Lit (LBool b1)) (Lit (LBool b2)) -> VLit $ LBool $ b1 || b2
+    ty                                      -> error "You shouldn't be here ..."
+
 -- Here be builtin functions
 
 quoteTerm :: [Name] -> Val -> Tm
-quoteTerm _  (VVar x)     = Var x
-quoteTerm ns (VApp t u)   = App (quoteTerm ns t) (quoteTerm ns u)
-quoteTerm ns (VLit l)     = Lit l
-quoteTerm ns (VLam x t)   = Lam fx (quoteTerm (fx:ns) (t (VVar x)))
-    where
-        fx = freshName ns x
+quoteTerm ns = \case
+    VVar x                      -> Var x
+    VApp t u                    -> App (quoteTerm ns t) (quoteTerm ns u)
+    VLit l                      -> Lit l
+    VLam (freshName ns -> x) t  -> Lam x (quoteTerm (x:ns) (t (VVar x)))
 
 normalForm :: Env -> Tm -> Tm
 normalForm env tm = quoteTerm (map fst env) $ evalTerm env tm
 
+{-
 runTypedTerm :: TTm -> Maybe Tm
 runTypedTerm tm = case typeCheck [] tm of
     Just t  -> Just $ normalForm [] $ loseType tm
     Nothing -> Nothing
+-}
+
+runTypedTerm :: TTm -> Maybe Tm
+runTypedTerm tm = do
+    t <- typeCheck [] tm
+    return $ normalForm [] $ loseType tm
 
 --- Tests
 
@@ -131,10 +173,14 @@ test2 = (App idTm test1)
 
 test3 = (Let "x" (idTm) (App test1 (Var "x")))
 
-boolId = (TLam "b" TBool (TVar "b")) -- :: TArr TBool TBool 
+boolId = (TLam "b" TBool (TVar "b")) -- :: TArr TBool TBool
 
-true = TLit (LBool True)             -- :: TBool 
+true = TLit (LBool True)             -- :: TBool
 
 trueAgain = TApp boolId true         -- :: TBool
 
 runTrueAgain = runTypedTerm trueAgain -- == Just (Lit (LBool True))
+
+addTest x y = (TPlus (TLit (LInt x)) (TLit (LInt y)))
+
+unreachableCodeHasBeenReached = normalForm [] (Plus (Lit (LInt 3)) (Lit (LBool True)) )
