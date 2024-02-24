@@ -1,11 +1,13 @@
 import System.Environment
 import System.IO
 import Control.Monad (unless)
+import Text.Megaparsec.Error
 
 -- Saját imports
 
-import Core
+import Core (prettyPrint, runTypedTerm, b)
 import Ring
+import Parser (parseString)
 
 main :: IO ()
 main = do
@@ -69,7 +71,11 @@ read_ = do
 -- Handle repl option like : :q - quit, :h - help, ...
 eval_ :: [Char] -> String
 eval_ (':':'h':_) = "This is a help"
-eval_ cs          = cs
+eval_ cs          = case parseString cs of
+    Left a  -> errorBundlePretty a
+    Right t -> case runTypedTerm t of 
+        Just t' -> prettyPrint t' 
+        Nothing -> "Typechecking failed"
 {- TODO
 eval_ cs          = do 
     term <- parseTerm cs

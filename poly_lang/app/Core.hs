@@ -7,14 +7,18 @@ import Data.Maybe
 type Name = String
 
 {-
--- TODO : 
-    - builting functions for Int Bool, (+), (*), ...
-    - More basetypes : Int, Rac, Real, ...
-    - More tests : 
+-- So far: STLC with
+    Bool and Int types
+    Let bindings
+    with buildin functions for Bool and Nat: (+), (*), And, Or
+
+-- TODO :
+    - More basetypes : Rac, Real, Comp
+    - And subtyped typchecking
+    - More tests:
         - for Bool, Int
         - for just general lambdacalc (like well typed combinators)
 
-    - Maybe : merge TTm and Tm
 -}
 
 -- FOR NOW: trick:
@@ -85,7 +89,7 @@ loseType = \case
     TTimes t u -> Times (loseType t) (loseType u)
     TOr t u    -> Or (loseType t) (loseType u)
 
----
+--- Evaluation
 
 data Tm
     = Var Name
@@ -111,8 +115,6 @@ data Val
     | VApp Val Val
     | VLam Name (Val -> Val)
     | VLit Literal
-
---- Evaluation
 
 freshName :: [Name] -> Name -> Name
 freshName ns x = if elem x ns
@@ -160,6 +162,17 @@ runTypedTerm tm = do
     t <- typeCheck [] tm
     return $ normalForm [] $ loseType tm
 
+--- Pritty print
+
+prettyPrint :: Tm -> String
+prettyPrint = \case
+    Var n         -> n
+    App t u       -> unwords ["( ",prettyPrint t," ",prettyPrint u," )"]
+    Lam n t       -> unwords ["(f ",n," -> ",prettyPrint t," )"]
+    Let n t u     -> unwords ["(let ",n," = ",prettyPrint t," ",prettyPrint u," )"]
+    Lit (LBool l) -> show l
+    Lit (LInt l)  -> show l
+
 --- Tests
 
 test1 = normalForm [] (Lam "x" (App (Var "x") (Var "x")) )
@@ -182,5 +195,9 @@ trueAgain = TApp boolId true         -- :: TBool
 runTrueAgain = runTypedTerm trueAgain -- == Just (Lit (LBool True))
 
 addTest x y = (TPlus (TLit (LInt x)) (TLit (LInt y)))
+
+a = TApp (TLam "x" TBool (TLit (LBool True))) (TLit (LBool False))
+
+b = typeCheck [] a
 
 unreachableCodeHasBeenReached = normalForm [] (Plus (Lit (LInt 3)) (Lit (LBool True)) )
