@@ -12,6 +12,7 @@ import Data.Char
 import Data.Void
 import System.Exit
 import Text.Megaparsec
+import Text.Megaparsec.Debug (dbg)
 
 import qualified Text.Megaparsec.Char       as C
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -56,24 +57,32 @@ pArr = do
     void $ char ')'
     pure $ TArr a b
 
-pBinAll = try . asum $ map pBinOp ['*','+','|','&']
+pBinAll = choice $ map (try . pBinOp) ['+','*','|','&']
 
 pLit = pInt <|> pBool
 
 pInt = do
-    i <- L.decimal
+    i <- lexeme L.decimal
     pure $ TLit $ LInt i
 
+pBool = choice
+        [ (TLit (LBool True)  <$ (symbol "true"))
+        , (TLit (LBool False) <$ (symbol "false"))]
+
+{-
 pBool = do
     b <- (symbol "true" <|> symbol "false")
     pure $ TLit $ LBool (if b == "true" then True else False)
+-}
+
+pBinAtom = pLit <|> parens pTm
 
 pBinOp op = do
-    void $ char '('
-    a <- pTm
-    void $ char op
+--    void $ char '('
+    a <- pBinAtom
+    void $ lexeme (C.char op)
     b <- pTm
-    void $ char ')'
+--    void $ char ')'
     pure $ (h op) a b
     where
         h '+' = TPlus
@@ -100,8 +109,18 @@ pLet = do
     u <- pTm
     pure $ TLet x t u
 
+--pTm :: Parser TTm
+--pTm = dbg "literal" pLit <|> pBinAll <|> pLam <|> pLet <|> pSpine
+
+
 pTm :: Parser TTm
-pTm  = pBinAll <|> pLit <|> pLam <|> pLet <|> pSpine 
+pTm  = choice
+    [ {-dbg "bin"    -} pBinAll
+    , {-dbg "literal"-} pLit
+    , {-dbg "lambda" -} pLam 
+    , {-dbg "letbind"-} pLet  
+    , {-dbg "app"    -} pSpine ] <?> "a valid term"
+
 
 pSrc :: Parser TTm
 pSrc = ws *> pTm <* eof

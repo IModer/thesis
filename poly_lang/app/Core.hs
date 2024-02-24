@@ -132,7 +132,14 @@ evalTerm env = \case
     Lam n t                                 -> VLam n (\u -> evalTerm ((n, u):env) t)
     Let n t u                               -> evalTerm ((n, evalTerm env t):env) u
     Lit l                                   -> VLit l
-    Plus  (Lit (LInt i))   (Lit (LInt j))   -> VLit $ LInt $ i + j
+--    Plus  (Lit (LInt i))   (Lit (LInt j))   -> VLit $ LInt $ i + j
+    Plus  u                 t               -> case evalTerm env u of
+        VLit (LInt i)    -> case evalTerm env t of
+            VLit (LInt j)    -> VLit $ LInt $ i + j
+            e2               -> error "You shouldn't be here ..."
+        e1               -> error "You shouldn't be here ..."
+-- Ennek a mintájára |
+--                   V
     Times (Lit (LInt i))   (Lit (LInt j))   -> VLit $ LInt $ i * j
     And   (Lit (LBool b1)) (Lit (LBool b2)) -> VLit $ LBool $ b1 && b2
     Or    (Lit (LBool b1)) (Lit (LBool b2)) -> VLit $ LBool $ b1 || b2
@@ -167,11 +174,15 @@ runTypedTerm tm = do
 prettyPrint :: Tm -> String
 prettyPrint = \case
     Var n         -> n
-    App t u       -> unwords ["( ",prettyPrint t," ",prettyPrint u," )"]
-    Lam n t       -> unwords ["(f ",n," -> ",prettyPrint t," )"]
-    Let n t u     -> unwords ["(let ",n," = ",prettyPrint t," ",prettyPrint u," )"]
+    App t u       -> unwords ["(",prettyPrint t,prettyPrint u,")"]
+    Lam n t       -> unwords ["(f",n,"->",prettyPrint t,")"]
+    Let n t u     -> unwords ["(let",n,"=",prettyPrint t,prettyPrint u,")"]
     Lit (LBool l) -> show l
     Lit (LInt l)  -> show l
+    Plus t u      -> unwords [prettyPrint t,"+",prettyPrint u]
+    Times t u     -> unwords [prettyPrint t,"+",prettyPrint u]
+    And t u       -> unwords [prettyPrint t,"+",prettyPrint u]
+    Or t u        -> unwords [prettyPrint t,"+",prettyPrint u]
 
 --- Tests
 
@@ -199,5 +210,7 @@ addTest x y = (TPlus (TLit (LInt x)) (TLit (LInt y)))
 a = TApp (TLam "x" TBool (TLit (LBool True))) (TLit (LBool False))
 
 b = typeCheck [] a
+
+badTm = TPlus (TLit (LInt 3)) (TPlus (TLit (LInt 3)) (TLit (LInt 3)))
 
 unreachableCodeHasBeenReached = normalForm [] (Plus (Lit (LInt 3)) (Lit (LBool True)) )

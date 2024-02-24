@@ -5,7 +5,7 @@ import Text.Megaparsec.Error
 
 -- Saját imports
 
-import Core (prettyPrint, runTypedTerm, b)
+import Core (prettyPrint, runTypedTerm)
 import Ring
 import Parser (parseString)
 
