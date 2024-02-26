@@ -10,7 +10,6 @@ import Control.Applicative hiding (many, some)
 import Control.Monad
 import Data.Char
 import Data.Void
-import System.Exit
 import Text.Megaparsec
 import Text.Megaparsec.Debug (dbg)
 
@@ -25,9 +24,16 @@ type Parser = Parsec Void String
 ws :: Parser ()
 ws = L.space C.space1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
 
+lexeme :: Parser a -> Parser a
 lexeme     = L.lexeme ws
+
+symbol :: String -> Parser String
 symbol s   = lexeme (C.string s)
+
+char :: Char -> Parser Char
 char c     = lexeme (C.char c)
+
+parens :: Parser a -> Parser a
 parens p   = char '(' *> p <* char ')'
 
 keyword :: String -> Bool
@@ -44,27 +50,39 @@ pKeyword kw = do
     void $ C.string kw
     (takeWhile1P Nothing isAlphaNum *> empty) <|> ws
 
+pBind :: Parser String
 pBind  = pIdent <|> symbol "_"
+
+pAtom :: Parser TTm
 pAtom  = (TVar <$> pIdent) <|> parens pTm
+
+pSpine :: Parser TTm
 pSpine = foldl1 TApp <$> some pAtom
+
+pType :: Parser Type
 pType  = pArr <|> (symbol "Int" *> return TInt) <|> (symbol "Bool" *> return TBool)
 
+pArr :: Parser Type
 pArr = do
     void $ char '('
     a <- pType
-    symbol "->"
+    void $ symbol "->"
     b <- pType
     void $ char ')'
     pure $ TArr a b
 
+pBinAll :: Parser TTm
 pBinAll = choice $ map (try . pBinOp) ['+','*','|','&']
 
+pLit :: Parser TTm
 pLit = pInt <|> pBool
 
+pInt :: Parser TTm
 pInt = do
     i <- lexeme L.decimal
     pure $ TLit $ LInt i
 
+pBool :: Parser TTm
 pBool = choice
         [ (TLit (LBool True)  <$ (symbol "true"))
         , (TLit (LBool False) <$ (symbol "false"))]
@@ -75,8 +93,10 @@ pBool = do
     pure $ TLit $ LBool (if b == "true" then True else False)
 -}
 
+pBinAtom :: Parser TTm
 pBinAtom = pLit <|> parens pTm
 
+pBinOp :: Char -> Parser TTm
 pBinOp op = do
 --    void $ char '('
     a <- pBinAtom
@@ -89,8 +109,10 @@ pBinOp op = do
         h '*' = TTimes
         h '&' = TAnd
         h '|' = TOr
+        h _   = error $ "Unsupported operator "
     -- Throw errors
 
+pLam :: Parser TTm
 pLam = do
     void $ char 'f' <|> char '\\'
     x <- pBind  --some pBind
@@ -100,6 +122,7 @@ pLam = do
     u <- pTm
     pure $ TLam x t u  --foldr Lam t xs
 
+pLet :: Parser TTm
 pLet = do
     pKeyword "let"
     x <- pBind
@@ -141,4 +164,5 @@ parseString src =
 
 -- Test
 
+mTm :: String
 mTm = "f y : (Bool -> Int) . f x : ((Bool -> Int) -> (Int -> Bool)) . x y"

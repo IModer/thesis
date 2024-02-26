@@ -50,8 +50,8 @@ type TEnv = [(Name, Type)]
 -- TODO: Proper Error monad instead of Maybe
 typeCheck :: TEnv -> TTm -> Maybe Type
 typeCheck env = \case
-    TLit (LInt  a) -> Just TInt
-    TLit (LBool a) -> Just TBool
+    TLit (LInt  _) -> Just TInt
+    TLit (LBool _) -> Just TBool
     TVar x         -> (lookup x env)
     TLet x e u     -> do
         t <- typeCheck env e
@@ -64,8 +64,8 @@ typeCheck env = \case
         t2 <- typeCheck env e2
         case t1 of
             (TArr t t') | t == t2 -> return t'
-            (TArr t _)            -> Nothing
-            ty                    -> Nothing
+            (TArr _ _)            -> Nothing
+            _                     -> Nothing
     TPlus e1 e2    -> bothTypesEqual env e1 e2 TInt
     TTimes e1 e2   -> bothTypesEqual env e1 e2 TInt
     TAnd e1 e2     -> bothTypesEqual env e1 e2 TBool
@@ -80,7 +80,7 @@ bothTypesEqual env e1 e2 t  = do
 loseType :: TTm -> Tm
 loseType = \case
     TVar n     -> Var n
-    TLam n t e -> Lam n (loseType e)
+    TLam n _ e -> Lam n (loseType e)
     TApp t u   -> App (loseType t) (loseType u)
     TLet n t u -> Let n (loseType t) (loseType u)
     TLit l     -> Lit l
@@ -132,18 +132,26 @@ evalTerm env = \case
     Lam n t                                 -> VLam n (\u -> evalTerm ((n, u):env) t)
     Let n t u                               -> evalTerm ((n, evalTerm env t):env) u
     Lit l                                   -> VLit l
---    Plus  (Lit (LInt i))   (Lit (LInt j))   -> VLit $ LInt $ i + j
     Plus  u                 t               -> case evalTerm env u of
         VLit (LInt i)    -> case evalTerm env t of
             VLit (LInt j)    -> VLit $ LInt $ i + j
-            e2               -> error "You shouldn't be here ..."
-        e1               -> error "You shouldn't be here ..."
--- Ennek a mintájára |
---                   V
-    Times (Lit (LInt i))   (Lit (LInt j))   -> VLit $ LInt $ i * j
-    And   (Lit (LBool b1)) (Lit (LBool b2)) -> VLit $ LBool $ b1 && b2
-    Or    (Lit (LBool b1)) (Lit (LBool b2)) -> VLit $ LBool $ b1 || b2
-    ty                                      -> error "You shouldn't be here ..."
+            _                -> error "You shouldn't be here ..."
+        _                -> error "You shouldn't be here ..."
+    Times u                 t               -> case evalTerm env u of
+        VLit (LInt i)    -> case evalTerm env t of
+            VLit (LInt j)    -> VLit $ LInt $ i * j
+            _                -> error "You shouldn't be here ..."
+        _                -> error "You shouldn't be here ..."
+    And   u                 t               -> case evalTerm env u of
+        VLit (LBool i)    -> case evalTerm env t of
+            VLit (LBool j)   -> VLit $ LBool $ i && j
+            _                -> error "You shouldn't be here ..."
+        _                -> error "You shouldn't be here ..."
+    Or    u                 t               -> case evalTerm env u of
+        VLit (LBool i)    -> case evalTerm env t of
+            VLit (LBool j)   -> VLit $ LBool $ i || j
+            _                -> error "You shouldn't be here ..."
+        _                -> error "You shouldn't be here ..."
 
 -- Here be builtin functions
 
@@ -166,7 +174,7 @@ runTypedTerm tm = case typeCheck [] tm of
 
 runTypedTerm :: TTm -> Maybe Tm
 runTypedTerm tm = do
-    t <- typeCheck [] tm
+    _ <- typeCheck [] tm
     return $ normalForm [] $ loseType tm
 
 --- Pritty print
@@ -186,31 +194,46 @@ prettyPrint = \case
 
 --- Tests
 
+-- TODO : Organise tests 
+
+test1 :: Tm 
 test1 = normalForm [] (Lam "x" (App (Var "x") (Var "x")) )
 
+idTm :: Tm
 idTm = (Lam "x" (Var "x"))
 
 -- Only for Untyped cos in STLC Y is not well typed
 --yTm = (Lam "f" (App (Lam "x" (App (Var "f") (App (Var "x") (Var "x")))) (Lam "x" (App (Var "f") (App (Var "x") (Var "x"))))))
 
+test2 :: Tm
 test2 = (App idTm test1)
 
+test3 :: Tm
 test3 = (Let "x" (idTm) (App test1 (Var "x")))
 
+boolId :: TTm
 boolId = (TLam "b" TBool (TVar "b")) -- :: TArr TBool TBool
 
+true :: TTm
 true = TLit (LBool True)             -- :: TBool
 
+trueAgain :: TTm
 trueAgain = TApp boolId true         -- :: TBool
 
+runTrueAgain :: Maybe Tm 
 runTrueAgain = runTypedTerm trueAgain -- == Just (Lit (LBool True))
 
+addTest :: Int -> Int -> TTm
 addTest x y = (TPlus (TLit (LInt x)) (TLit (LInt y)))
 
-a = TApp (TLam "x" TBool (TLit (LBool True))) (TLit (LBool False))
+testTm1 :: TTm
+testTm1 = TApp (TLam "x" TBool (TLit (LBool True))) (TLit (LBool False))
 
-b = typeCheck [] a
+typeCheckTest :: Maybe Type
+typeCheckTest = typeCheck [] testTm1
 
+badTm :: TTm
 badTm = TPlus (TLit (LInt 3)) (TPlus (TLit (LInt 3)) (TLit (LInt 3)))
 
+unreachableCodeHasBeenReached :: Tm
 unreachableCodeHasBeenReached = normalForm [] (Plus (Lit (LInt 3)) (Lit (LBool True)) )
