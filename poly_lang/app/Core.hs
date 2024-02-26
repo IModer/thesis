@@ -52,7 +52,7 @@ typeCheck :: TEnv -> TTm -> Maybe Type
 typeCheck env = \case
     TLit (LInt  _) -> Just TInt
     TLit (LBool _) -> Just TBool
-    TVar x         -> (lookup x env)
+    TVar x         -> (lookup x env)  -- Error can occure here: "Undefined variable x"
     TLet x e u     -> do
         t <- typeCheck env e
         typeCheck ((x,t):env) u

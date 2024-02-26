@@ -3,6 +3,11 @@ module Parser where
 
 {-
 | So far this is Ctrl+c Ctrl+v
+| TODO :
+        impl polinome parsing and more unary and binary operators
+        clean up, maybe find easier way to do it
+        check if its correct
+        waaay laaater : lose the type parseing
 -}
 
 import Core
@@ -37,7 +42,7 @@ parens :: Parser a -> Parser a
 parens p   = char '(' *> p <* char ')'
 
 keyword :: String -> Bool
-keyword x = x == "f" || x == "in" || x == "let"
+keyword x = x == "f" || x == "\\" || x == "in" || x == "let"
 
 pIdent :: Parser Name
 pIdent = try $ do
@@ -53,15 +58,40 @@ pKeyword kw = do
 pBind :: Parser String
 pBind  = pIdent <|> symbol "_"
 
-pAtom :: Parser TTm
-pAtom  = (TVar <$> pIdent) <|> parens pTm
+pAtom :: Parser TTm --try might be needed here, or choice
+pAtom  = pLit <|> (TVar <$> pIdent) <|> parens pTm
 
 pSpine :: Parser TTm
 pSpine = foldl1 TApp <$> some pAtom
 
-pType :: Parser Type
-pType  = pArr <|> (symbol "Int" *> return TInt) <|> (symbol "Bool" *> return TBool)
 
+-- should work like : 
+-- <type> ::= "Int" | "Bool" | <type> "->" <type>
+-- type = pTypeLit optional ("->" type)
+-- pTypeLit = "Int" | "Bool" | "(" type ")"
+--
+
+pType :: Parser Type
+pType =  do 
+    t <- pBaseType
+    t' <- optional $ do 
+        void $ symbol "->"
+        pType 
+    case t' of
+        Just a  -> return $ TArr t a
+        Nothing -> return t
+
+pBaseType :: Parser Type
+pBaseType = choice
+    [ symbol "Int" *> return TInt
+    , symbol "Bool" *> return TBool
+    , parens pType
+    ]
+
+--pType :: Parser Type
+--pType  = pArr <|> (symbol "Int" *> return TInt) <|> (symbol "Bool" *> return TBool)
+
+{-
 pArr :: Parser Type
 pArr = do
     void $ char '('
@@ -69,7 +99,8 @@ pArr = do
     void $ symbol "->"
     b <- pType
     void $ char ')'
-    pure $ TArr a b
+    return $ TArr a b
+-}
 
 pBinAll :: Parser TTm
 pBinAll = choice $ map (try . pBinOp) ['+','*','|','&']
@@ -80,7 +111,7 @@ pLit = pInt <|> pBool
 pInt :: Parser TTm
 pInt = do
     i <- lexeme L.decimal
-    pure $ TLit $ LInt i
+    return $ TLit $ LInt i
 
 pBool :: Parser TTm
 pBool = choice
@@ -103,7 +134,7 @@ pBinOp op = do
     void $ lexeme (C.char op)
     b <- pTm
 --    void $ char ')'
-    pure $ (h op) a b
+    return $ (h op) a b
     where
         h '+' = TPlus
         h '*' = TTimes
@@ -120,7 +151,7 @@ pLam = do
     t <- pType
     void $ symbol "->"
     u <- pTm
-    pure $ TLam x t u  --foldr Lam t xs
+    return $ TLam x t u  --foldr Lam t xs
 
 pLet :: Parser TTm
 pLet = do
@@ -130,7 +161,7 @@ pLet = do
     t <- pTm
     void $ symbol ";"
     u <- pTm
-    pure $ TLet x t u
+    return $ TLet x t u
 
 --pTm :: Parser TTm
 --pTm = dbg "literal" pLit <|> pBinAll <|> pLam <|> pLet <|> pSpine
@@ -163,6 +194,8 @@ parseString src =
 -}
 
 -- Test
+
+ptest1 = parseString "let intId = (f x : Int -> x); (intId 3)"
 
 mTm :: String
 mTm = "f y : (Bool -> Int) . f x : ((Bool -> Int) -> (Int -> Bool)) . x y"

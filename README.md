@@ -137,16 +137,28 @@ deriválás
 <term> ::= 
   <name>
   | <term> <term>
-  | ("λ" | "lam" | "\") <name> "." <term>
-  | "let" <name> "=" <term> "in" <term>
+  | ("λ" | "f" | "\") <name> ":" <ty> "->" <term>
+  | "let" <name> "=" <term> <term> ";"
   | <term> <binop> <term>
   | <unop> <term>
+  | "true" | "false"
+  | <number>
+  | <poly>
 
-<binop> ::= "+" | "*" | "\" | "mod"
+<binop> ::= "+" | "*" | "&" | "|" | "^"
 
 <unop> ::= "!" | "-"
 
-<name> ::= [a-zA-z_][a-zA-z_0-9]*
+<number> ::= --this should cover all numbers, even complex
+
+<poly> ::= "[" <name> <binop> <name> "]"
+
+<name> ::= [a-zA-z_][a-zA-z_0-9]* -- (isAlphaNum és nem kulcsszó)
+
+<type> ::= "Int" | "Bool" | "Poly" <type> | <type> "->" <type>
+
+
+
 ```
 
 -- A `let`-et még kitalálom de biztos lesz:
