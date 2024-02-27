@@ -3,6 +3,12 @@ module Ring where
 --import Data.Complex
 --import Data.List
 
+--TODO: move this ti some lib
+zipWithPad :: (a -> b -> c) -> a -> b -> [a] -> [b] -> [c]
+zipWithPad f da db xs []         = zipWith f xs (repeat db)
+zipWithPad f da db [] ys         = zipWith f (repeat da) ys 
+zipWithPad f da db (x:xs) (y:ys) = (f x y) : zipWithPad f da db xs ys
+
 {- |  
 Ring a
 Its main use is in the Polynomial typeclass
@@ -19,9 +25,9 @@ It should satisfy the following laws
 @
 -}
 
-class Ring a where
+class (Eq a) => Ring a where
     zero  :: a
-    plus  :: a -> a -> a
+    add   :: a -> a -> a
     neg   :: a -> a
     one   :: a
     mul   :: a -> a -> a
@@ -29,7 +35,7 @@ class Ring a where
 -- Integer
 instance Ring Integer where
     zero = 0
-    plus = (+)
+    add  = (+)
     neg  = ((-) 0)
     one  = 1
     mul  = (*)
@@ -47,7 +53,7 @@ instance Ring Integer where
 
 instance Ring Rational where
     zero = 0
-    plus = (+)
+    add  = (+)
     neg  = ((-) 0)
     one  = 1
     mul  = (*)
@@ -62,37 +68,71 @@ instance Ring Rational where
 --The constraint `Real a` is no smaller than the instance head `Ring a'   
 instance Ring Double where
     zero = 0
-    plus = (+)
+    add  = (+)
     neg  = ((-) 0)
     one  = 1
     mul  = (*)
 
-newtype Poly a = Poly [a]
+newtype Poly a = Poly [a] deriving (Show, Eq)
 
-{-
+
 instance Functor(Poly) where
-    fmap f (Poly a) = f a
--}
+    fmap f (Poly a) = Poly $ fmap f a
 
-(<+>) :: Ring a => Poly a -> Poly a -> Poly a
-(Poly f) <+> (Poly g) = Poly $ zipWith plus f g
+
+poly_plus :: Ring a => Poly a -> Poly a -> Poly a
+poly_plus (Poly f) (Poly g) = Poly $ zipWithPad add zero zero f g
 
 poly_neg :: Ring a => Poly a -> Poly a
 poly_neg (Poly f) = Poly $ map neg f
 
-poly_mul :: Ring a => Poly a -> Poly a -> Poly a
-poly_mul (Poly xs) (Poly ys) = Poly (mul' xs ys)
+{-
+BAD
+poly_mul' :: Ring a => Poly a -> Poly a -> Poly a
+poly_mul' (Poly xs) (Poly ys) = Poly (mul' xs ys)
     where
         mul' :: Ring a => [a] -> [a] -> [a]
         mul' []        _  = [zero]
-        mul' (x : xs')  ys' = zipWith (plus) (map (mul x) ys') (zero : (mul' xs' ys'))
+        mul' (x : xs')  ys' = zipWith plus (map (mul x) ys') (zero : (mul' xs' ys'))
+-}
 
-instance (Ring a) => Ring (Poly a) where
+-- TODO : this should be possible with Functor
+poly_shift :: Ring a => Poly a -> Poly a
+poly_shift (Poly f) = Poly $ zero:f
+
+-- This function loses Poly
+poly_head :: Ring a => Poly a -> a
+poly_head (Poly f) = head f
+
+-- TODO : Fix this is is bad
+poly_mul :: Ring a => Poly a -> Poly a -> Poly a
+poly_mul xs ys
+    | xs == zero || ys == zero = zero
+    | xs == one                = ys
+    | ys == one                = xs
+    | xs == Poly []            = Poly [zero] --hack     
+    | otherwise                = poly_plus (fmap (mul $ poly_head xs) ys) (poly_shift (poly_mul xs ys) )
+
+instance Ring a => Ring (Poly a) where
     zero = Poly [zero]
-    plus = (<+>)
+    add  = poly_plus
     neg  = poly_neg
     one  = Poly [one]
     mul  = poly_mul
+
+--- Tests
+
+-- Integer : Constant 1
+p1 :: Poly Integer
+p1 = Poly [1]
+
+-- Integer : X + 2
+p2 :: Poly Integer
+p2 = Poly [2, 1]
+
+-- Integer : x^2 -x + 3
+p3 :: Poly Integer
+p3 = Poly [3,-1,2]
 
 --Complex
 --https://hackage.haskell.org/package/base-4.19.0.0/docs/Data-Complex.html
@@ -100,7 +140,7 @@ instance (Ring a) => Ring (Poly a) where
 {- Ask
 instance Ring (Complex a) where
     zero = 0
-    plus = (+)
+    add  = (+)
     neg  = ((-) 0)
     one  = 1
     mul  = (*)
