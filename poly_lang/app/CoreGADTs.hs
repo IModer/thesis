@@ -25,14 +25,15 @@ data Tm where
     Let   :: Name    -> Tm   -> Tm -> Tm
     Lit   :: Literal -> Tm
     deriving Show
-    --Operators : and builtin functions: +, *, factor, ... 
-    {-
-    Builtin :: BuiltInType -> [Tm] -> Tm
-    --vagy 
-    BinOP :: Op      -> Tm   -> Tm -> Tm
-    UnOP  :: Op      -> Tm   -> Tm
-    ...
-    -}
+
+--Operators : and builtin functions: +, *, factor, ... 
+{-
+Builtin :: BuiltInType -> [Tm] -> Tm
+--vagy 
+BinOP :: Op      -> Tm   -> Tm -> Tm
+UnOP  :: Op      -> Tm   -> Tm
+...
+-}
 
 type Env = [(Name, (Val, Type))]
 
@@ -50,21 +51,6 @@ Lam n _ e -> VLam n (\u -> evalTerm ((n, u):env) e)
 TLam n t e     -> do
         t' <- typeCheck ((n,t):env) e
         return $ TArr t t'
-
--App:
-
-vLamApp (evalTerm env t) (evalTerm env u)
-
-vLamApp (VLam _ t) u = t u
-vLamApp t          u = VApp t u
-
-TApp e1 e2     -> do
-        t1 <- typeCheck env e1
-        t2 <- typeCheck env e2
-        case t1 of
-            (TArr t t') | t == t2 -> return t'
-            (TArr _ _)            -> Nothing
-            _                     -> Nothing
 -}
 
 vLamApp :: Val -> Val -> Val

@@ -126,9 +126,6 @@ irred - Irredúcibilis-e a polinóm
 
 Osztály - elég fontos főleg a faktorgyűrűhez, talán fontos hogy gyors legyen
 
-Kérdés:
-  Még mi?
-
 deriválás
 
 ### Core Syntax
@@ -157,16 +154,21 @@ deriválás
 
 <type> ::= "Int" | "Bool" | "Poly" <type> | <type> "->" <type>
 
-
-
 ```
 
 -- A `let`-et még kitalálom de biztos lesz:
-  vagy (`let x = y in`)
-  vagy (ommit the `in`)
+  
+  `let x = y` --(desugar into)--> let x = y; () ahol () az üres term ami nem csinál semmit és tipusa top
+  
   vagy magasabb szinten, a repl szinten elkapjuk a `let` el kezdődő kifejezéseket és hozzáadjuk a Contexthez, de lehet ez nehezen kivitelezheető mert a repl hozzá kell hogy férjen a Contexthez
 
 -- Még kell polinómok szintaxisa
+
+let x = [x^2 + x + 2] + [2 + x]; x
+--[x^2 + 2x + 4]
+
+factor x
+--[(x+2)(x+2)]
 
 ### References so far
 
