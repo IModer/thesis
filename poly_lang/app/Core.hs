@@ -37,7 +37,7 @@ data TTm
     | TOr  TTm TTm          -- (b : Bool) || (l :Bool)
     deriving Show
 
-data Type 
+data Type
     = TArr Type Type
     | TInt
     | TBool
