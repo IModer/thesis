@@ -41,6 +41,7 @@ data Type
     = TArr Type Type
     | TInt
     | TBool
+    | TTop
     deriving (Show, Eq)
 
 type TEnv = [(Name, Type)]
@@ -52,6 +53,7 @@ typeCheck :: TEnv -> TTm -> Maybe Type
 typeCheck env = \case
     TLit (LInt  _) -> Just TInt
     TLit (LBool _) -> Just TBool
+    TLit (LTop)    -> Just TTop
     TVar x         -> (lookup x env)  -- Error can occure here: "Undefined variable x"
     TLet x e u     -> do
         t <- typeCheck env e
@@ -106,6 +108,7 @@ data Tm
 data Literal
     = LInt Int
     | LBool Bool
+    | LTop
     deriving Show
 
 type Env = [(Name, Val)]
@@ -165,13 +168,6 @@ quoteTerm ns = \case
 normalForm :: Env -> Tm -> Tm
 normalForm env tm = quoteTerm (map fst env) $ evalTerm env tm
 
-{-
-runTypedTerm :: TTm -> Maybe Tm
-runTypedTerm tm = case typeCheck [] tm of
-    Just t  -> Just $ normalForm [] $ loseType tm
-    Nothing -> Nothing
--}
-
 runTypedTerm :: TTm -> Maybe Tm
 runTypedTerm tm = do
     _ <- typeCheck [] tm
@@ -187,6 +183,7 @@ prettyPrint = \case
     Let n t u     -> unwords ["(let",n,"=",prettyPrint t,prettyPrint u,")"]
     Lit (LBool l) -> show l
     Lit (LInt l)  -> show l
+    Lit (LTop)    -> "()"  --TODO : we can make this empty, its only () for debug
     Plus t u      -> unwords [prettyPrint t,"+",prettyPrint u]
     Times t u     -> unwords [prettyPrint t,"+",prettyPrint u]
     And t u       -> unwords [prettyPrint t,"+",prettyPrint u]
