@@ -15,6 +15,7 @@ import Control.Applicative hiding (many, some)
 import Control.Monad
 import Data.Char
 import Data.Void
+import Data.Functor
 import Text.Megaparsec
 import Text.Megaparsec.Debug (dbg)
 
@@ -44,6 +45,7 @@ parens p   = char '(' *> p <* char ')'
 keyword :: String -> Bool
 keyword x = x == "f" || x == "\\" || x == "in" || x == "let"
 
+-- TODO : this is magic i should ask what it does
 pIdent :: Parser Name
 pIdent = try $ do
     x <- takeWhile1P Nothing isAlphaNum
@@ -76,15 +78,15 @@ pType =  do
     t <- pBaseType
     t' <- optional $ do 
         void $ symbol "->"
-        pType 
+        pType
     case t' of
         Just a  -> return $ TArr t a
         Nothing -> return t
 
 pBaseType :: Parser Type
 pBaseType = choice
-    [ symbol "Int" *> return TInt
-    , symbol "Bool" *> return TBool
+    [ symbol "Int"  $> TInt
+    , symbol "Bool" $> TBool
     , parens pType
     ]
 
@@ -115,8 +117,8 @@ pInt = do
 
 pBool :: Parser TTm
 pBool = choice
-        [ (TLit (LBool True)  <$ (symbol "true"))
-        , (TLit (LBool False) <$ (symbol "false"))]
+        [ TLit (LBool True)  <$ symbol "true"
+        , TLit (LBool False) <$ symbol "false"]
 
 {-
 pBool = do
@@ -134,13 +136,13 @@ pBinOp op = do
     void $ lexeme (C.char op)
     b <- pTm
 --    void $ char ')'
-    return $ (h op) a b
+    return $ h op a b
     where
         h '+' = TPlus
         h '*' = TTimes
         h '&' = TAnd
         h '|' = TOr
-        h _   = error $ "Unsupported operator "
+        h _   = error "Unsupported operator "
     -- Throw errors
 
 pLam :: Parser TTm
@@ -149,7 +151,7 @@ pLam = do
     x <- pBind  --some pBind
     void $ char ':'
     t <- pType
-    void $ symbol "->"
+    void $ symbol "."
     u <- pTm
     return $ TLam x t u  --foldr Lam t xs
 
@@ -160,8 +162,11 @@ pLet = do
     void $ symbol "="
     t <- pTm
     void $ symbol ";"
-    u <- pTm
-    return $ TLet x t u
+    u <- optional pTm
+    return $ case u of
+        Just u' -> TLet x t u'
+        Nothing -> TLet x t $ TLit LTop
+--    return $ TLet x t u
 
 --pTm :: Parser TTm
 --pTm = dbg "literal" pLit <|> pBinAll <|> pLam <|> pLet <|> pSpine
