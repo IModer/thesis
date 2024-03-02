@@ -5,9 +5,9 @@ import Text.Megaparsec.Error
 
 -- Saját imports
 
-import Core (prettyPrint, runTypedTerm)
+import Core
 import Ring
-import Parser (parseString)
+import Parser
 
 main :: IO ()
 main = do
@@ -27,6 +27,7 @@ loadFiles (x:xs) = do
     con <- readFile x
     putStrLn con
     loadFiles xs
+
 {- something something fmap
 loadFile xs = do 
     content <- map readFile xs
@@ -51,15 +52,16 @@ runRepl is ::   (read : IO String) ->
                 (runRepl/loop : IO ()) 
 -}
 
+
 --  :q - quit is handled here
 runRepl :: IO ()
 runRepl = do
     input <- read_
---TODO : ask about this magic
--- why doesnt this work with do
-    unless (input == ":q")
-       $ print_ (eval_ input)
-      >> runRepl
+    unless (input == ":q") $ do
+        let tm = eval_ input in do 
+            print_ tm
+            runRepl 
+
 
 read_ :: IO String
 read_ = do
@@ -69,7 +71,7 @@ read_ = do
 
 --eval_ :: String -> String
 -- Handle repl option like : :q - quit, :h - help, ...
-eval_ :: [Char] -> String
+eval_ :: String -> String
 eval_ (':':'h':_) = "This is a help"
 eval_ cs          = case parseString cs of
     Left a  -> errorBundlePretty a
@@ -84,3 +86,75 @@ eval_ cs          = do
 
 print_ :: String -> IO ()
 print_ = putStrLn
+
+
+-----------------------------------------------------------------------
+---------------------------Playing with State--------------------------
+-----------------------------------------------------------------------
+
+type SEnv = (TEnv , Env) 
+
+runRepl' :: IO ()
+runRepl' = runStatefulRepl ([],[])
+
+runStatefulRepl :: SEnv -> IO ()
+runStatefulRepl env = do
+    inp <- read_
+    unless (inp == ":q") $ do
+        let (env', tm) = eval env inp in  -- This could fail, for now let it be String
+            do 
+                print_ tm
+                runStatefulRepl env'
+
+eval :: SEnv -> String -> (SEnv, String)
+eval env cs = case parseString cs of
+    Left a    -> (env, "Parse error")
+    Right tm  -> case runTypedTerm' env tm of
+        (env', Just tm') -> (env', prettyPrint tm')
+        (env', Nothing)  -> (env', "Typechecking error")
+
+runTypedTerm' :: SEnv -> TTm -> (SEnv, Maybe Tm)
+runTypedTerm' env tm = do
+    let (env', t) = typeCheck' env tm in
+        case t of 
+            Nothing -> (env, Nothing)  -- régi env, mert failelt a typeCheck
+            Just t -> let (env'', tm') = normalForm' env' $ loseType tm in (env'', Just tm')
+
+typeCheck' :: SEnv -> TTm -> (SEnv, Maybe Type)
+typeCheck' = undefined
+
+-- :: Tm -> State SEnv Tm
+normalForm' :: SEnv -> Tm -> (SEnv, Tm)
+normalForm' = undefined
+
+-- :: Val -> State SEnv Tm
+quoteTerm' :: SEnv -> Val -> (SEnv, Tm) 
+quoteTerm' = undefined
+{-
+
+runTypedTerm :: Env -> TTm -> (Env, Maybe Tm)
+runTypedTerm env tm = do
+    _ <- typeCheck env tm
+    return $ normalForm env $ loseType tm
+
+
+typeCheck most :: TEnv -> TTm -> Maybe Type
+
+typeCheck :: Env -> TTm -> (Env, Maybe Type)
+typeChekk (tenv, env) = ... (csak tenv et használja és módosítja)
+
+normalForm :: Env -> Tm -> (Env, Tm)
+
+quoteTerm :: Env -> Val -> (Env, Tm)   -- ő pl nem módosítja az Env-et
+qouteTerm env = ... (mostani kód)
+    where
+        ns = map (fst . fst) env
+
+evalTerm :: Env -> Tm -> (Env, Val)
+
+print_ .: String -> IO ()
+print_ = putStrLn
+
+
+
+-}

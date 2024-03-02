@@ -135,12 +135,14 @@ deriválás
   <name>
   | <term> <term>
   | ("λ" | "f" | "\") <name> ":" <ty> "->" <term>
-  | "let" <name> "=" <term> <term> ";"
+  | "let" <name> "=" <term> ";" <opt_tm>
   | <term> <binop> <term>
   | <unop> <term>
   | "true" | "false"
   | <number>
   | <poly>
+
+<opt_tm> ::= ε | <term> 
 
 <binop> ::= "+" | "*" | "&" | "|" | "^"
 
@@ -170,8 +172,27 @@ let x = [x^2 + x + 2] + [2 + x]; x
 factor x
 --[(x+2)(x+2)]
 
+## A non-exhausting long list of TODOs
+
+Only exporting the needed functions from modules
+
+Better folder structure (Core\Type.hs, Core\Run.hs, ...)
+
+Code formating (pl.: [ormolu](https://github.com/tweag/ormolu))
+
+Make Repl remember previous commands
+
+Make runTypedTerm have State so it can remember the Concext (Env, bind variables declared with let)
+
+? Maybe fuse TTm and Tm
+
+Add timing
+
+Documentation
+
 ### References so far
 
 Core lang impl: https://github.com/AndrasKovacs/elaboration-zoo/tree/master/01-eval-HOAS-names
 
 Factor algorithm : https://hackage.haskell.org/package/factor and K.O.Geddes et. al.- Algorithms for Computer Algebra
+
