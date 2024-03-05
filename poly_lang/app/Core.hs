@@ -70,6 +70,10 @@ typeCheck = \case
         t2 <- typeCheck e2
         case t1 of
             (TArr t t') | t == t2 -> return t'
+            -- TODO : Turns out these are not handled
+            -- let three = (\y : Int . 3); three three
+            -- *** Exception: app\Core.hs:(71,9)-(72,46): Non-exhaustive patterns in case
+
 --            These cases will be hanfles by Maybe MonadFail being Nothing
 --            (TArr _ _)            -> Nothing
 --            _                     -> Nothing
@@ -113,6 +117,7 @@ data Tm
     | Times Tm Tm
     | And Tm Tm
     | Or Tm Tm
+    deriving Show
 
 showTm :: Tm -> String
 showTm = \case
@@ -128,8 +133,8 @@ showTm = \case
     And t u       -> unwords [showTm t,"+",showTm u]
     Or t u        -> unwords [showTm t,"+",showTm u]
 
-instance Show Tm where
-    show = showTm
+--instance Show Tm where
+--    show = showTm
 
 data Literal
     = LInt Int
@@ -137,11 +142,14 @@ data Literal
     | LTop
     deriving Show
 
+-- Operators/Functions should also have Val : like +, *, ...
 data Val
     = VVar Name
     | VApp Val Val
     | VLam Name (Val -> Val)
     | VLit Literal
+    | VAnd Val Val
+    | VOr  Val Val
 
 freshName :: [Name] -> Name -> Name
 freshName ns x = if x `elem` ns
@@ -195,25 +203,34 @@ evalTerm = \case
     And e u   -> do
         e' <- evalTerm e
         u' <- evalTerm u
-        return $ VLit $ LBool $ isBothBool e' u' (&&)
+        case isBothBool e' u' (&&) of
+            Left v -> return $ v
+            Right (v1, v2) -> return $ VAnd v1 v1
+        --return $ VLit $ LBool $ isBothBool e' u' (&&)
     Or e u    -> do
         e' <- evalTerm e
         u' <- evalTerm u
-        return $ VLit $ LBool $ isBothBool e' u' (||)
+        case isBothBool e' u' (||) of
+            Left v -> return $ v
+            Right (v1, v2) -> return $ VOr v1 v2
+        --return $ VLit $ LBool $ isBothBool e' u' (||)
 
-isBothBool :: Val -> Val -> (Bool -> Bool -> Bool) -> Bool
+-- Hopefully bug is fixed, but laos fix it for Int, and future operators!!
+-- TODO : bug here, variable inside function will fail here
+-- If either is a VVar then we should like somehow keep the fact that it is a VVar and keep VLam as a function
+isBothBool :: Val -> Val -> (Bool -> Bool -> Bool) -> Either Val (Val,Val)
 isBothBool v v' f = case v of
     VLit (LBool i) -> case v' of 
-        VLit (LBool j) -> f i j
-        _              -> error "..."
-    _              -> error "..."
+        VLit (LBool j) -> Left $ VLit $ LBool $ f i j
+        VVar n'        -> Right (VLit (LBool i), VVar n')
+    VVar n         -> case v' of
+        VLit (LBool j) -> Right (VVar n, VLit (LBool j))
+        VVar n'        -> Right (VVar n, VVar n')
 
 isBothInt :: Val -> Val -> (Int -> Int -> Int) -> Int
 isBothInt v v' f = case v of
     VLit (LInt i) -> case v' of
         VLit (LInt j) -> f i j
-        _              -> error "..."
-    _              -> error "..."
 
 -- Here be builtin functions
 
@@ -225,10 +242,12 @@ quoteTerm ns = \case
     VApp t u                    -> App (quoteTerm ns t) (quoteTerm ns u)
     VLit l                      -> Lit l
     VLam (freshName ns -> x) t  -> Lam x (quoteTerm (x:ns) (t (VVar x)))
+    VAnd  l r                   -> And (quoteTerm ns l) (quoteTerm ns r) 
+    VOr  l r                    -> Or (quoteTerm ns l) (quoteTerm ns r) 
 
 -- TODO
 normalForm :: Tm -> State SEnv Tm
 normalForm tm = do
     val <- evalTerm tm
     env <- get
-    lift $ Identity $ quoteTerm (map fst $ nameEnv env) val 
+    lift $ Identity $ quoteTerm (map fst $ nameEnv env) val
