@@ -4,6 +4,7 @@ import System.IO
 import Control.Monad (unless)
 import Text.Megaparsec.Error
 import Control.Monad.State.Lazy  --StateT
+import Data.Functor.Identity
 
 -- Saját imports
 
@@ -87,20 +88,18 @@ eval_ cs          = case parseString cs of
                 $ CD.runTypedTerm t
 -}
 
-eval :: String -> State SEnv String 
+eval :: String -> State SEnv String
 eval cs = case parseString cs of
     Left a   -> return "Parse error"        -- TODO : print errors
-    Right tm -> helper (runTypedTerm tm)
+    Right tm -> do
+        env <- get
+        mapStateT (handleMaybe env) (runTypedTerm tm)
 
         where
-            -- TODO redo this, without LambdaCase
-            helper :: StateT SEnv Maybe Tm -> State SEnv String
-            helper st = do
-                env <- get
-                mapStateT (\case 
-                    (Just (tm',env')) -> return (show tm',env')
-                    Nothing -> return ("Type error",env) ) st
-
+            handleMaybe :: SEnv -> Maybe (Tm , SEnv) -> Identity (String, SEnv)
+            handleMaybe env m = case m of
+                Just (tm',env') -> return (show tm',env')
+                Nothing         -> return ("Type error",env)
 
 print_ :: String -> IO ()
 print_ = putStrLn
