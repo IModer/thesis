@@ -43,7 +43,7 @@ parens :: Parser a -> Parser a
 parens p   = char '(' *> p <* char ')'
 
 keyword :: String -> Bool
-keyword x = x == "f" || x == "\\" || x == "in" || x == "let"
+keyword x = x == "\\" || x == "in" || x == "let"
 
 -- TODO : this is magic i should ask what it does
 pIdent :: Parser Name
@@ -129,13 +129,13 @@ pBool = do
 pBinAtom :: Parser TTm
 pBinAtom = pLit <|> parens pTm
 
+-- A bug where : \x : Int . x + 3 would not parse
 pBinOp :: Char -> Parser TTm
 pBinOp op = do
---    void $ char '('
-    a <- pBinAtom
+    --a <- pBinAtom  
+    a <- pAtom
     void $ lexeme (C.char op)
     b <- pTm
---    void $ char ')'
     return $ h op a b
     where
         h '+' = TPlus
@@ -167,10 +167,6 @@ pLet = do
         Just u' -> TLet x t u'
         Nothing -> TLet x t $ TLit LTop
 --    return $ TLet x t u
-
---pTm :: Parser TTm
---pTm = dbg "literal" pLit <|> pBinAll <|> pLam <|> pLet <|> pSpine
-
 
 pTm :: Parser TTm
 pTm  = choice
