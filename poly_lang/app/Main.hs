@@ -92,21 +92,3 @@ runStatefulRepl = do
         tm <- (state . runState) $ eval inp     -- Unbox and box (StateT Id -> StateT IO)
         lift $ print_ tm                        -- Lift IO into StateT IO
         runStatefulRepl
-
-
------------------------------------------------------------------------
----------------------------Playing with State--------------------------
------------------------------------------------------------------------
-
-runRepl' :: IO ()
-runRepl' = evalStateT runStatefulRepl $ SEnv [] []
-
--- This should maybe be StateT IO
---runStatefulRepl :: SEnv -> IO ()
-runStatefulRepl :: StateT SEnv IO ()
-runStatefulRepl = do
-    inp <- lift read_                           -- Lift IO into StateT IO
-    unless (inp == ":q") $ do
-        tm <- (state . runState) $ eval inp     -- Unbox and box (StateT Id -> StateT IO)
-        lift $ print_ tm                        -- Lift IO into StateT IO
-        runStatefulRepl
