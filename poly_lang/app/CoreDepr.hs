@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wincomplete-patterns #-}
 {-# LANGUAGE LambdaCase, ViewPatterns #-}
 
-module CoreDepr where
+module CoreDepr(runTypedTerm, prettyPrint, TTm) where
 
 import Data.Maybe
 

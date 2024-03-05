@@ -1,13 +1,16 @@
+{-# LANGUAGE LambdaCase  #-}
 import System.Environment
 import System.IO
 import Control.Monad (unless)
 import Text.Megaparsec.Error
+import Control.Monad.State.Lazy  --StateT
 
 -- Saját imports
 
 import Core
 import Ring
 import Parser
+import qualified CoreDepr as CD -- Remove
 
 main :: IO ()
 main = do
@@ -54,6 +57,7 @@ runRepl is ::   (read : IO String) ->
 
 
 --  :q - quit is handled here
+{-
 runRepl :: IO ()
 runRepl = do
     input <- read_
@@ -61,6 +65,7 @@ runRepl = do
         let tm = eval_ input in do 
             print_ tm
             runRepl 
+-}
 
 
 read_ :: IO String
@@ -70,19 +75,22 @@ read_ = do
     getLine
 
 -- Handle repl option like : :q - quit, :h - help, ...
+-- Depr
+{-
 eval_ :: String -> String
 eval_ (':':'h':_) = "This is a help"
 eval_ cs          = case parseString cs of
     Left a  -> errorBundlePretty a
     Right t -> maybe
                 "Typechecking failed"
-                prettyPrint
-                $ runTypedTerm t
+                CD.prettyPrint
+                $ CD.runTypedTerm t
+-}
 
 eval :: String -> State SEnv String 
 eval cs = case parseString cs of
     Left a   -> return "Parse error"        -- TODO : print errors
-    Right tm -> helper (runTypedTerm' tm)
+    Right tm -> helper (runTypedTerm tm)
 
         where
             -- TODO redo this, without LambdaCase
@@ -90,15 +98,15 @@ eval cs = case parseString cs of
             helper st = do
                 env <- get
                 mapStateT (\case 
-                    (Just (tm',env')) -> return (prettyPrint tm',env')
+                    (Just (tm',env')) -> return (show tm',env')
                     Nothing -> return ("Type error",env) ) st
 
 
 print_ :: String -> IO ()
 print_ = putStrLn
 
-runRepl' :: IO ()
-runRepl' = evalStateT runStatefulRepl $ SEnv [] []
+runRepl :: IO ()
+runRepl = evalStateT runStatefulRepl $ SEnv [] []
 
 runStatefulRepl :: StateT SEnv IO ()
 runStatefulRepl = do
