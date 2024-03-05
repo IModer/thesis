@@ -147,7 +147,7 @@ pBinOp op = do
 
 pLam :: Parser TTm
 pLam = do
-    void $ char 'f' <|> char '\\'
+    void $ char '\\'
     x <- pBind  --some pBind
     void $ char ':'
     t <- pType
