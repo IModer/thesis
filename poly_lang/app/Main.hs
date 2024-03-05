@@ -79,6 +79,21 @@ eval_ cs          = case parseString cs of
                 prettyPrint
                 $ runTypedTerm t
 
+eval :: String -> State SEnv String 
+eval cs = case parseString cs of
+    Left a   -> return "Parse error"        -- TODO : print errors
+    Right tm -> helper (runTypedTerm' tm)
+
+        where
+            -- TODO redo this, without LambdaCase
+            helper :: StateT SEnv Maybe Tm -> State SEnv String
+            helper st = do
+                env <- get
+                mapStateT (\case 
+                    (Just (tm',env')) -> return (prettyPrint tm',env')
+                    Nothing -> return ("Type error",env) ) st
+
+
 print_ :: String -> IO ()
 print_ = putStrLn
 

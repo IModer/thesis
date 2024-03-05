@@ -10,7 +10,7 @@ import Control.Monad.State.Lazy  --StateT
 type Name = String
 
 type TEnv = [(Name, Type)]
-type Env  = [(Name,TTm)]
+type Env  = [(Name, Val)]
 
 data SEnv = SEnv {typeEnv :: TEnv , 
                   nameEnv :: Env}
@@ -34,20 +34,6 @@ data Type
     | TTop
     deriving (Show, Eq)
 
-eval :: String -> State SEnv String 
-eval cs = case parseString cs of
-    Left a   -> return "Parse error"        -- TODO : print errors
-    Right tm -> helper (runTypedTerm' tm)
-
-        where
-            -- TODO redo this
-            helper :: StateT SEnv Maybe Tm -> State SEnv String
-            helper st = do
-                env <- get
-                mapStateT (\case 
-                    (Just (tm',env')) -> return (prettyPrint tm',env')
-                    Nothing -> return ("Type error",env) ) st
-
 runTypedTerm :: TTm -> StateT SEnv Maybe Tm
 runTypedTerm tm = do
     t <- typeCheck tm
@@ -63,9 +49,9 @@ typeCheck = \case
     TLit LTop      -> return TTop
     TVar x         -> undefined
     TLet x e u     -> do
-        t <- typeCheck' e
+        t <- typeCheck e
         modify (\(SEnv tenv env) -> SEnv ((x,t) : tenv) env)
-        typeCheck' u
+        typeCheck u
     TLam x t e     -> undefined
     TApp e1 e2     -> undefined
     TPlus e1 e2    -> undefined
@@ -73,11 +59,22 @@ typeCheck = \case
     TAnd e1 e2     -> undefined
     TOr e1 e2      -> undefined
 
-bothTypesEqual :: TEnv -> TTm -> TTm -> Type -> Maybe Type
-bothTypesEqual env e1 e2 t  = do
-    t1 <- typeCheck env e1
-    t2 <- typeCheck env e2
-    if t1 == t && t2 == t then Just t else Nothing
+--bothTypesEqual :: TEnv -> TTm -> TTm -> Type -> Maybe Type
+--bothTypesEqual :: TTm -> TTm -> TEnv -> (TEnv, Maybe Type)
+bothTypesEqual :: TTm -> TTm -> Type -> StateT SEnv Maybe Type
+bothTypesEqual e1 e2 t  = do
+    t1 <- typeCheck e1
+    t2 <- typeCheck e2
+    -- This should be nothing if its False becasue Maybe monad has Nothing as fail
+    -- https://hackage.haskell.org/package/base-4.19.1.0/docs/src/Control.Monad.Fail.html#line-74
+    case (t1 == t && t2 == t) of
+        True -> return t
+    {-
+    if t1 == t && t2 == t then 
+        return t
+    else 
+        return Nothing
+    -}
 
 loseType :: TTm -> Tm
 loseType = \case
@@ -103,7 +100,6 @@ data Tm
     | Times Tm Tm
     | And Tm Tm
     | Or Tm Tm
-    deriving Show
 
 showTm :: Tm -> String
 showTm = \case
