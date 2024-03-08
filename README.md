@@ -134,7 +134,7 @@ deriválás
 <term> ::= 
   <name>
   | <term> <term>
-  | "\" <name> ":" <ty> "->" <term>
+  | "\" <name> ":" <ty> "." <term>
   | "let" <name> "=" <term> ";" <opt_tm>
   | <term> <binop> <term>
   | <unop> <term>
