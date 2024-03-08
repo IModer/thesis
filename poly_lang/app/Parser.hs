@@ -66,7 +66,6 @@ pAtom  = pLit <|> (TVar <$> pIdent) <|> parens pTm
 pSpine :: Parser TTm
 pSpine = foldl1 TApp <$> some pAtom
 
-
 -- should work like : 
 -- <type> ::= "Int" | "Bool" | <type> "->" <type>
 -- type = pTypeLit optional ("->" type)

@@ -2,7 +2,6 @@
 import System.Environment
 import System.IO
 import Control.Monad (unless)
-import Text.Megaparsec.Error
 import Control.Monad.State.Lazy  --StateT
 import Data.Functor.Identity
 
@@ -11,7 +10,6 @@ import Data.Functor.Identity
 import Core
 import Ring
 import Parser
-import qualified CoreDepr as CD -- Remove
 
 main :: IO ()
 main = do
@@ -90,7 +88,7 @@ eval_ cs          = case parseString cs of
 
 eval :: String -> State SEnv String
 eval cs = case parseString cs of
-    Left a   -> return "Parse error"        -- TODO : print errors
+    Left _   -> return "Parse error"        -- TODO : print errors
     Right tm -> do
         env <- get
         mapStateT (handleMaybe env) (runTypedTerm tm)
