@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wincomplete-patterns #-}
-{-# LANGUAGE LambdaCase, ViewPatterns #-}
+{-# LANGUAGE LambdaCase, ViewPatterns, OverloadedStrings #-}
 module Core where
 
 import Data.Maybe
@@ -7,8 +7,10 @@ import Control.Monad.Trans       --lift
 import Control.Monad.State.Class --MonadClass
 import Control.Monad.State.Lazy  --StateT
 import Data.Functor.Identity
+import qualified Data.Text as T
 
-type Name = String
+--type Name = String
+type Name = T.Text
 
 type TEnv = [(Name, Type)]
 type Env  = [(Name, Val)]
@@ -121,17 +123,17 @@ data Tm
 
 showTm :: Tm -> String
 showTm = \case
-    Var n         -> n
+    Var n         -> T.unpack n
     App t u       -> unwords ["(",showTm t,showTm u,")"]
-    Lam n t       -> unwords ["(\\",n,"->",showTm t,")"]
-    Let n t u     -> unwords ["(let",n,"=",showTm t,showTm u,")"]
+    Lam n t       -> unwords ["(\\",T.unpack n,"->",showTm t,")"]
+    Let n t u     -> unwords ["(let",T.unpack n,"=",showTm t,showTm u,")"]
     Lit (LBool l) -> show l
     Lit (LInt l)  -> show l
     Lit LTop      -> "()"  --TODO : we can make this empty, its only () for debug
     Plus t u      -> unwords [showTm t,"+",showTm u]
-    Times t u     -> unwords [showTm t,"+",showTm u]
-    And t u       -> unwords [showTm t,"+",showTm u]
-    Or t u        -> unwords [showTm t,"+",showTm u]
+    Times t u     -> unwords [showTm t,"*",showTm u]
+    And t u       -> unwords [showTm t,"&",showTm u]
+    Or t u        -> unwords [showTm t,"|",showTm u]
 
 --instance Show Tm where
 --    show = showTm
@@ -153,7 +155,7 @@ data Val
 
 freshName :: [Name] -> Name -> Name
 freshName ns x = if x `elem` ns
-                    then freshName ns (x ++ "'")
+                    then freshName ns $ T.snoc x '\'' 
                     else x
 
 -- TODO
