@@ -126,7 +126,7 @@ postfix n f = Postfix (f <$ symbol n)
 
 -- A Expr is a tree with nodes (+), (*), ... and leafes pLit, or pVariable
 pExprT :: Parser TTm
-pExprT = choice 
+pExprT = try $ choice 
     [ 
       {-dbg "parens expr" -} (parens pExpr) <?> "parens expr"
     , {-dbg "literal"     -} pLit           <?> "literal"
@@ -139,7 +139,8 @@ pExpr = makeExprParser pExprT operatorTable
 pBind :: Parser Text
 pBind  = pIdent <|> symbol "_"
 
--- MTODO : Lam could be a prefix operator
+-- TODO : Lam could be a prefix operator
+--pLam :: Parser TTm
 pLam :: Parser TTm
 pLam = do
     void $ char '\\'
@@ -150,7 +151,8 @@ pLam = do
     u <- pTm
     return $ TLam x t u
 
--- Let could also be a prefix operator
+
+-- TODO : Let could also be a prefix operator
 pLet :: Parser TTm
 pLet = do
     pKeyword "let"
@@ -178,14 +180,15 @@ pType :: Parser Type
 pType = makeExprParser pBaseType operatorTableT
 
 pTm :: Parser TTm
-pTm  = choice
+pTm  = try (choice
     [ {-dbg "expr"   -} pExpr
-    , {-dbg "lambda" -} pLam 
-    , {-dbg "letbind"-} pLet  
-    ] <?> "a valid term"
+    , {-dbg "lambda" -} pLam
+    , {-dbg "letbind"-} pLet
+    , {-dbg "letbind"-} parens pTm
+    ] <?> "a valid term")
 
 pSrc :: Parser TTm
 pSrc = ws *> pTm <* eof
 
-parseText :: Text -> Either (ParseErrorBundle Text Void) TTm
-parseText src = parse pSrc "(stdin)" src
+parseString :: Text -> Either (ParseErrorBundle Text Void) TTm
+parseString src = parse pSrc "(stdin)" src

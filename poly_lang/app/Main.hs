@@ -5,11 +5,14 @@ import Control.Monad (unless)
 import Control.Monad.State.Lazy  --StateT
 import Data.Functor.Identity
 
+import Text.Megaparsec.Error
 -- Saját imports
 
 import Core
 import Ring
-import Parser
+--import Parser
+import ParserNew
+import qualified Data.Text as T
 
 main :: IO ()
 main = do
@@ -87,8 +90,8 @@ eval_ cs          = case parseString cs of
 -}
 
 eval :: String -> State SEnv String
-eval cs = case parseString cs of
-    Left _   -> return "Parse error"        -- TODO : print errors
+eval cs = case parseString $ T.pack cs of
+    Left a   -> return $ errorBundlePretty a        -- TODO : print errors
     Right tm -> do
         env <- get
         mapStateT (handleMaybe env) (runTypedTerm tm)

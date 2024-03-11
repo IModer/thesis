@@ -50,7 +50,6 @@ runTypedTerm tm = do
 
 --- Type Checking ---
 
--- TODO
 typeCheck :: TTm -> StateT SEnv Maybe Type
 typeCheck = \case
     TLit (LInt  _) -> return TInt
@@ -72,13 +71,7 @@ typeCheck = \case
         t2 <- typeCheck e2
         case t1 of
             (TArr t t') | t == t2 -> return t'
-            -- TODO : Turns out these are not handled
-            -- let three = (\y : Int . 3); three three
-            -- *** Exception: app\Core.hs:(71,9)-(72,46): Non-exhaustive patterns in case
-
---            These cases will be hanfles by Maybe MonadFail being Nothing
---            (TArr _ _)            -> Nothing
---            _                     -> Nothing
+            _                     -> lift Nothing
     TPlus e1 e2    -> bothTypesEqual e1 e2 TInt
     TTimes e1 e2   -> bothTypesEqual e1 e2 TInt
     TAnd e1 e2     -> bothTypesEqual e1 e2 TBool
@@ -90,10 +83,10 @@ bothTypesEqual :: TTm -> TTm -> Type -> StateT SEnv Maybe Type
 bothTypesEqual e1 e2 t  = do
     t1 <- typeCheck e1
     t2 <- typeCheck e2
-    -- This should be Nothing if its False becasue Maybe monad has Nothing as fail
-    -- https://hackage.haskell.org/package/base-4.19.1.0/docs/src/Control.Monad.Fail.html#line-74
-    case t1 == t && t2 == t of
-        True -> return t
+    if t1 == t && t2 == t then
+        return t
+    else
+        lift Nothing
 
 loseType :: TTm -> Tm
 loseType = \case
@@ -119,7 +112,7 @@ data Tm
     | Times Tm Tm
     | And Tm Tm
     | Or Tm Tm
-    deriving Show
+--    deriving Show
 
 showTm :: Tm -> String
 showTm = \case
@@ -135,8 +128,8 @@ showTm = \case
     And t u       -> unwords [showTm t,"&",showTm u]
     Or t u        -> unwords [showTm t,"|",showTm u]
 
---instance Show Tm where
---    show = showTm
+instance Show Tm where
+    show = showTm
 
 data Literal
     = LInt Int
@@ -158,19 +151,10 @@ freshName ns x = if x `elem` ns
                     then freshName ns $ T.snoc x '\'' 
                     else x
 
--- TODO
 vLamApp :: Val -> Val -> Val
 vLamApp (VLam _ t) u = t u
 vLamApp t          u = VApp t u
 
-{-  This might be the hardest, it should be : VLam (\u -> do modify insert (n,u);evalTerm t)
-    Lam n t                                 -> do
-        modify $ insert (n, u)
-        VLam n (\u -> evalTerm t)
-        --VLam n (\u -> evalTerm ((n, u):env) t)
--}
-
--- TODO
 --evalTerm :: Env -> Tm -> Val
 evalTerm :: Tm -> State SEnv Val
 evalTerm = \case
@@ -206,14 +190,14 @@ evalTerm = \case
         e' <- evalTerm e
         u' <- evalTerm u
         case isBothBool e' u' (&&) of
-            Left v -> return $ v
+            Left v -> return v
             Right (v1, v2) -> return $ VAnd v1 v1
         --return $ VLit $ LBool $ isBothBool e' u' (&&)
     Or e u    -> do
         e' <- evalTerm e
         u' <- evalTerm u
         case isBothBool e' u' (||) of
-            Left v -> return $ v
+            Left v -> return v
             Right (v1, v2) -> return $ VOr v1 v2
         --return $ VLit $ LBool $ isBothBool e' u' (||)
 
@@ -236,7 +220,6 @@ isBothInt v v' f = case v of
 
 -- Here be builtin functions
 
--- TODO
 --quoteTerm :: Val -> State SEnv Tm
 quoteTerm :: [Name] -> Val -> Tm
 quoteTerm ns = \case
