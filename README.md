@@ -40,6 +40,22 @@ Inspiration:
 
 ### Types
 
+2 típust különböztetünk meg : Számok, polinómok
+
+Számok : 
+  Minden complex számok, és a complex számokon definiált műveleteket használják
+
+Polinómok :
+  Complex számok listája és a complex polimokon definiált műveleteket használják
+
+Moduló : 
+
+  open Zmod x : minden műveletet és literált megcimkéz egy `mod x` művelettel amit majd egy preprocesszor beszúr
+
+  open Pmod f : minden műveletet `mod f` váges el ahol f egy ponimóm
+
+  close : bezár minden megnyitott csomagot
+
 - Numbers:
   - ZZ
   - ZZ mod n
@@ -50,41 +66,27 @@ Inspiration:
   - Poly< R> where R is Number
   - QuotientPoly\<R\>\<f\> where R is Number, f : Poly\<R\>
 
-### Számok
+### Típusok reprezentálása
 
-Esetleges egységes típusosztály (Number where (+), (*), ...)
+Int : 
+  Integer (Végtelen nagy is lehet, már vannak rá megírt függvények)
 
---Nat - Saját data vagy valami beépített ha van
+Rac :
+  (Int, Int)
 
-Ez elhagyahtó mert nem alkotnak még csoportot sem
+  (Kérdéses a hogy legyen e invariáns [a/b : gcd(a,b) = 1] és ha igen akkor hol enforceoljuk, esetleg lehessen kapcsolni)
+  (Geddes könyv, de mindenhol lehet)
 
-Int - Integer (Végtelen nagy is lehet, már vannak rá megírt függvények)
+Real : 
+  GHC Float/Double vagy egyből a Real típusosztály
 
-Rac - (Int, Int)
+  Algebrai számok, Z[x]/f gyűrűben ahol f a számot reprezentálja
 
-(Kérdéses a hogy legyen e invariáns [a/b : gcd(a,b) = 1] és ha igen akkor hol enforceoljuk, esetleg lehessen kapcsolni)
-(Geddes könyv, de mindenhol lehet)
+  gyök(2) -(Newton módszer)> [(1.4,1.5),(1.41, 1.42),...]
 
-magában szimbólikus
+Comp : 
+  (Real,Real) vagy (Data.Complex)
 
-Real - GHC Float/Double vagy egyből a Real típusosztály
-
-Szimbólikushoz :
-
-Algebrai számok, Z[x]/f gyűrűben ahol f a számot reprezentálja
-
-gyök(2) -(Newton módszer)> [(1.4,1.5),(1.41, 1.42),...]
-
-Comp - (Real,Real) vagy (Data.Complex)
-
-Z mod p - Típusosztály ahol a p-t vagy könyvtár keresése
-
-class Zmodp where
-  p :: Z
-
-majd minden művelet mod p ben végzünk el
-
-Esetleges csomagok - TODO
 
 ### Polinómok
 
@@ -93,40 +95,25 @@ Sima Listák (Vector)
 esetleg lista ami tárolj a hosszát (rank) de akkor azt be kell tartani mert Haskellbe (langage mágia nélkül) nem lehet betartatni
 amikor létre jön egy akkor autómatikusan szimplifikálódok
 
----
-Függvényekként, nagyon if
+### Műveletek
+ 
+Számok:
+  + 
+  *
+  div (egész osztás, vagyis levágja a tizedes jegyet)
+  / (rendes complex osztás)
+  mod (moduló)
+  
 
-let f = (λx -> x\*x + x + 2)
-és akkor
-f 3 = 3 \* 3 + 3 + 2
-és a f o g csak
-let g = (λx -> x + x^3)
-f o g = f . g (tárgynyelvi függvénykomp, metanyelvi függvénykomp. HOAS)
+Polinómok: 
 
-viszont összeadás, kivonás osztás kérdéses. AST szinten??
+  factor - Polinóm faktorizálása (Kérdés: Nat, Int, ... alatt hogyan, Válasz : komplex alatt megy minden)
 
----
+  irred - Irredúcibilis-e a polinóm (Ez kérdéses hogy mi alatt irredúcibilis-e)
 
-Faktorgyűrű - R\[x\]/f simán polinómgyűrű és mint a Zmodp nél mod f műveletek
+  Osztály - elég fontos főleg a faktorgyűrűhez, talán fontos hogy gyors legyen
 
-itt is lehet valami invariáns, attól függően hogy vannak az osztás megírva
-
-### Polinóm műveletek
-
-Nyelvi beépített elemek lesznek, mint pl.: a függvényképzés
-let f = λx -> x + 2 -- LetExpr f LamExpr x (PlusExpr x 2)
-factor f            -- App factor f, itt factort kitaláljuk a tárgykódból és a factor függvény implementálva van, majd az App valamhol HOAS-al (factor f) meghívja
-
-factor - Polinóm faktorizálása
-
-Kérdés:
-  Nat, Int, ... alatt hogyan
-
-irred - Irredúcibilis-e a polinóm
-
-Osztály - elég fontos főleg a faktorgyűrűhez, talán fontos hogy gyors legyen
-
-deriválás
+  deriválás
 
 ### Core Syntax
 
@@ -182,11 +169,9 @@ Code formating (pl.: [ormolu](https://github.com/tweag/ormolu))
 
 Make Repl remember previous commands
 
-Make runTypedTerm have State so it can remember the Concext (Env, bind variables declared with let)
+Better error messages, both parsing and typing errors
 
-? Maybe fuse TTm and Tm
-
-Add timing
+Add timing, and other repl/exe features like loading files
 
 Documentation
 
