@@ -2,7 +2,7 @@
 
 module Parser where
 
-import Core
+import Core hiding (Prefix)
 
 import Control.Applicative hiding (many, some)
 import Control.Monad
@@ -69,7 +69,7 @@ parens :: Parser a -> Parser a
 parens p   = char '(' *> p <* char ')'
 
 keywords :: [Name]
-keywords = ["\\", "let", "mod", "div"]
+keywords = ["\\", "let", "mod", "div", "factor", "irred", "derivative"]
 
 keyword :: Text -> Bool
 keyword x = x `elem` keywords
@@ -110,7 +110,10 @@ operatorTable =
         binaryL ""  TApp
     ] ,
     [
-      prefix  "-"   TNeg
+      prefix  "-"   (TPrefix Neg)
+    , prefix  "factor" (TPrefix Factor)
+    , prefix  "irred" (TPrefix Irred)
+    , prefix  "derivative" (TPrefix Der)
     ] ,
     [
       binaryL "*"   (TBinOp Times)

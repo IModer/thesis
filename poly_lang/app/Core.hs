@@ -32,8 +32,21 @@ data TTm
     | TLet    Name TTm  TTm
     | TLit    Literal
     | TBinOp  BinOp TTm TTm
-    | TNeg    TTm
+    | TPrefix PrefixOp TTm
     deriving Show
+
+data PrefixOp
+    = Neg
+    | Factor
+    | Irred
+    | Der
+
+instance Show PrefixOp where
+    show = \case
+        Neg    -> "-"
+        Factor -> "factor"
+        Irred  -> "irred"
+        Der    -> "derivative"
 
 data BinOp
     = And
@@ -53,7 +66,7 @@ data BinOp
     deriving Eq
 
 instance Show BinOp where
-    show op = case op of
+    show = \case
         And     -> "&"
         Or      -> "|"
         Eq      -> "="
@@ -107,11 +120,14 @@ typeCheck env = \case
     TBinOp op e1 e2 -> if op `elem` [And, Or]
         then bothTypesEqual env e1 e2 TBool
         else bothTypesEqual env e1 e2 TNumber
-    TNeg e          -> do
-        t <- typeCheck env e
-        case t of
-            TNumber -> return TNumber
-            _       -> lift Nothing
+    TPrefix op e    -> do
+        e' <- typeCheck env e
+        case (op, e') of
+            (Neg    , TNumber) -> return TNumber
+            (Factor , TNumber) -> return TNumber
+            (Der    , TNumber) -> return TNumber
+            (Irred  , TNumber) -> return TBool
+            (_      , _      ) -> lift Nothing
 
 bothTypesEqual :: TEnv -> TTm -> TTm -> Type -> StateT SEnv Maybe Type
 bothTypesEqual env e1 e2 t  = do
@@ -129,7 +145,7 @@ loseType = \case
     TApp t u      -> App (loseType t) (loseType u)
     TLet n t u    -> Let n (loseType t) (loseType u)
     TLit l        -> Lit l
-    TNeg t        -> Neg (loseType t)
+    TPrefix op t  -> Prefix op (loseType t)
     TBinOp op t u -> BinOp op (loseType t) (loseType u)
 
 --- Evaluation ---
@@ -140,7 +156,7 @@ data Tm
     | App Tm Tm
     | Let Name Tm Tm
     | Lit Literal
-    | Neg Tm
+    | Prefix PrefixOp Tm
     | BinOp BinOp Tm Tm
 --    deriving Show
 
@@ -153,7 +169,7 @@ showTm = \case
     Lit (LBool l) -> show l
     Lit (LNumber l)  -> show l
     Lit LTop      -> "()"  --TODO : we can make this empty, its only () for debug
-    Neg    t      -> unwords ["-",showTm t]
+    Prefix op t   -> unwords [show op ,showTm t]
     BinOp op t u  -> unwords [showTm t,show op,showTm u]
 
 instance Show Tm where
@@ -171,7 +187,7 @@ data Val
     | VApp Val Val
     | VLam Name (Val -> Val)
     | VLit Literal
-    | VNeg Val --this might not be needed
+    | VPrefix PrefixOp Val
     | VBinOp BinOp Val Val
 
 pattern VBool b = VLit (LBool b)
@@ -187,6 +203,7 @@ vLamApp :: Val -> Val -> Val
 vLamApp (VLam _ t) u = t u
 vLamApp t          u = VApp t u
 
+-- TODO: Evaluation of prefix , binop maybe can be done with functor instance
 evalTerm :: Tm -> State SEnv Val
 evalTerm = \case
     Var n     -> do
@@ -207,10 +224,14 @@ evalTerm = \case
         modify $ insertName (n , e')
         evalTerm u
     Lit l     -> return $ VLit l
-    Neg e     -> do
+    Prefix op e -> do
         e' <- evalTerm e
-        return $ case e' of 
-            (VNumber i) -> VNumber (- i) -- TODO maybe other cases need to be handled?
+        return $ case (op , e') of
+            (Neg    , VNumber i) -> VNumber (- i)
+            (Factor , VNumber i) -> VNumber (factor i)
+            (Irred  , VNumber i) -> VBool (irred i)
+            (Der    , VNumber i) -> VNumber (derivative i)
+            (_      , a        ) -> VPrefix op a
     BinOp op e u -> do
         e' <- evalTerm e
         u' <- evalTerm u
@@ -238,7 +259,7 @@ quoteTerm ns = \case
     VApp t u                    -> App (quoteTerm ns t) (quoteTerm ns u)
     VLit l                      -> Lit l
     VLam (freshName ns -> x) t  -> Lam x (quoteTerm (x:ns) (t (VVar x)))
-    VNeg t                      -> Neg (quoteTerm ns t)
+    VPrefix op l                -> Prefix op (quoteTerm ns l)
     VBinOp op l r               -> BinOp op (quoteTerm ns l) (quoteTerm ns r)
 
 normalForm :: Tm -> State SEnv Tm

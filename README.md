@@ -109,7 +109,7 @@ Polinómok:
 
   irred - Irredúcibilis-e a polinóm (Ez kérdéses hogy mi alatt irredúcibilis-e)
 
-  Osztály - elég fontos főleg a faktorgyűrűhez, talán fontos hogy gyors legyen
+  osztás - elég fontos főleg a faktorgyűrűhez, talán fontos hogy gyors legyen
 
   deriválás
 
