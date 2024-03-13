@@ -42,13 +42,13 @@ Inspiration:
 
 2 típust különböztetünk meg : Számok, polinómok
 
-Számok : 
+Számok :
   Minden complex számok, és a complex számokon definiált műveleteket használják
 
 Polinómok :
   Complex számok listája és a complex polimokon definiált műveleteket használják
 
-Moduló : 
+Moduló :
 
   open Zmod x : minden műveletet és literált megcimkéz egy `mod x` művelettel amit majd egy preprocesszor beszúr
 
@@ -68,7 +68,7 @@ Moduló :
 
 ### Típusok reprezentálása
 
-Int : 
+Int :
   Integer (Végtelen nagy is lehet, már vannak rá megírt függvények)
 
 Rac :
@@ -77,16 +77,15 @@ Rac :
   (Kérdéses a hogy legyen e invariáns [a/b : gcd(a,b) = 1] és ha igen akkor hol enforceoljuk, esetleg lehessen kapcsolni)
   (Geddes könyv, de mindenhol lehet)
 
-Real : 
+Real :
   GHC Float/Double vagy egyből a Real típusosztály
 
   Algebrai számok, Z[x]/f gyűrűben ahol f a számot reprezentálja
 
   gyök(2) -(Newton módszer)> [(1.4,1.5),(1.41, 1.42),...]
 
-Comp : 
+Comp :
   (Real,Real) vagy (Data.Complex)
-
 
 ### Polinómok
 
@@ -96,16 +95,15 @@ esetleg lista ami tárolj a hosszát (rank) de akkor azt be kell tartani mert Ha
 amikor létre jön egy akkor autómatikusan szimplifikálódok
 
 ### Műveletek
- 
+
 Számok:
-  + 
+  +
   *
   div (egész osztás, vagyis levágja a tizedes jegyet)
   / (rendes complex osztás)
   mod (moduló)
   
-
-Polinómok: 
+Polinómok:
 
   factor - Polinóm faktorizálása (Kérdés: Nat, Int, ... alatt hogyan, Válasz : komplex alatt megy minden)
 
@@ -177,7 +175,6 @@ Documentation
 
 ### References so far
 
-Core lang impl: https://github.com/AndrasKovacs/elaboration-zoo/tree/master/01-eval-HOAS-names
+[Core lang impl](https://github.com/AndrasKovacs/elaboration-zoo/tree/master/01-eval-HOAS-names)
 
-Factor algorithm : https://hackage.haskell.org/package/factor and K.O.Geddes et. al.- Algorithms for Computer Algebra
-
+Factor algorithm : [Factor-package](https://hackage.haskell.org/package/factor) and K.O.Geddes et. al.- Algorithms for Computer Algebra
