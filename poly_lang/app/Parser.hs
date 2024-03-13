@@ -69,7 +69,7 @@ parens :: Parser a -> Parser a
 parens p   = char '(' *> p <* char ')'
 
 keywords :: [Name]
-keywords = ["\\", "let"]
+keywords = ["\\", "let", "mod", "div"]
 
 keyword :: Text -> Bool
 keyword x = x `elem` keywords
@@ -113,22 +113,22 @@ operatorTable =
       prefix  "-"   TNeg
     ] ,
     [
-      binaryL "*"   TTimes
-    , binaryL "/"  TDiv
-    , binaryL "div" TIntDiv
-    , binaryL "mod" TMod
-    , binaryL "="   TEq
+      binaryL "*"   (TBinOp Times)
+    , binaryL "/"   (TBinOp Div)
+    , binaryL "div" (TBinOp IntDiv)
+    , binaryL "mod" (TBinOp Mod)
+    , binaryL "="   (TBinOp Eq)
     ] ,
     [ 
-      binaryL "+"   TPlus
-    , binaryL "-"   TMinus
-    , binaryL "|"   TOr
-    , binaryL "&"   TAnd
-    , binaryL "^"   TPow
-    , binaryL "<="  TLte
-    , binaryL ">="  TGte
-    , binaryL "<"   TLt
-    , binaryL ">"   TGt
+      binaryL "+"   (TBinOp Plus)
+    , binaryL "-"   (TBinOp Minus)
+    , binaryL "|"   (TBinOp Or)
+    , binaryL "&"   (TBinOp And)
+    , binaryL "^"   (TBinOp Pow)
+    , binaryL "<="  (TBinOp Lte)
+    , binaryL ">="  (TBinOp Gte)
+    , binaryL "<"   (TBinOp Lt)
+    , binaryL ">"   (TBinOp Gt)
     ]
   ]
 

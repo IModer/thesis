@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wincomplete-patterns #-}
-{-# LANGUAGE LambdaCase, ViewPatterns, OverloadedStrings #-}
+{-# LANGUAGE LambdaCase, ViewPatterns, OverloadedStrings, PatternSynonyms #-}
 module Core where
 
 import Data.Maybe
@@ -8,6 +8,7 @@ import Control.Monad.State.Class --MonadClass
 import Control.Monad.State.Lazy  --StateT
 import Data.Functor.Identity
 import qualified Data.Text as T
+import Ring hiding (mod, div)
 
 --type Name = String
 type Name = T.Text
@@ -25,64 +26,97 @@ data SEnv = SEnv {typeEnv :: TEnv ,
                   nameEnv :: Env}
 
 data TTm
-    = TVar Name
-    | TLam Name Type TTm
-    | TApp TTm TTm
-    | TLet Name TTm TTm
-    | TLit Literal
-    | TPlus TTm TTm         -- (i: Int)   +  (j : Int)
-    | TTimes TTm TTm        -- (i: Int)   *  (j : Int)
-    | TAnd  TTm TTm         -- (b : Bool) && (l :Bool)
-    | TOr  TTm TTm          -- (b : Bool) || (l :Bool)
+    = TVar    Name
+    | TLam    Name Type TTm
+    | TApp    TTm  TTm
+    | TLet    Name TTm  TTm
+    | TLit    Literal
+    | TBinOp  BinOp TTm TTm
+    | TNeg    TTm
     deriving Show
+
+data BinOp
+    = And
+    | Or
+    | Eq
+    | Plus
+    | Times
+    | Minus
+    | Div
+    | IntDiv
+    | Mod
+    | Pow
+    | Lte
+    | Gte
+    | Lt
+    | Gt
+    deriving Eq
+
+instance Show BinOp where
+    show op = case op of
+        And     -> "&"
+        Or      -> "|"
+        Eq      -> "="
+        Plus    -> "+"
+        Times   -> "*"
+        Minus   -> "-"
+        Div     -> "/"
+        IntDiv  -> "div"
+        Mod     -> "mod"
+        Pow     -> "^"
+        Lte     -> "<="
+        Gte     -> ">="
+        Lt      -> "<"
+        Gt      -> ">"
 
 data Type
     = TArr Type Type
-    | TInt
+    | TNumber
     | TBool
     | TTop
     deriving (Show, Eq)
 
 runTypedTerm :: TTm -> StateT SEnv Maybe Tm
 runTypedTerm tm = do
-    t <- typeCheck tm
+    t <- typeCheck [] tm
     (state . runState) $ normalForm (loseType tm) -- Unbox and box (StateT Id -> StateT Maybe)
 
 --- Type Checking ---
-
-typeCheck :: TTm -> StateT SEnv Maybe Type
-typeCheck = \case
-    TLit (LInt  _) -> return TInt
+--           TEnv is Context for lambdas
+typeCheck :: TEnv -> TTm -> StateT SEnv Maybe Type
+typeCheck env = \case
+    TLit (LNumber  _) -> return TNumber
     TLit (LBool _) -> return TBool
     TLit LTop      -> return TTop
     TVar x         -> do
-        env <- get
-        lift $ lookup x (typeEnv env)  --this is same as : t <- ... ; return t
+        env' <- get
+        maybe (lift $ lookup x env) return (lookup x (typeEnv env')) --this is same as : t <- ... ; return t
     TLet x e u     -> do
-        t <- typeCheck e
+        t <- typeCheck env e
         modify $ insertType (x,t)
-        typeCheck u
-    TLam x t e     -> do
-        modify $ insertType (x,t)
-        t' <- typeCheck e
+        typeCheck env u
+    TLam x t e     -> do 
+        t' <- typeCheck ((x,t):env) e
         return $ TArr t t'
     TApp e1 e2     -> do
-        t1 <- typeCheck e1
-        t2 <- typeCheck e2
+        t1 <- typeCheck env e1
+        t2 <- typeCheck env e2
         case t1 of
             (TArr t t') | t == t2 -> return t'
             _                     -> lift Nothing
-    TPlus e1 e2    -> bothTypesEqual e1 e2 TInt
-    TTimes e1 e2   -> bothTypesEqual e1 e2 TInt
-    TAnd e1 e2     -> bothTypesEqual e1 e2 TBool
-    TOr e1 e2      -> bothTypesEqual e1 e2 TBool
+    TBinOp op e1 e2 -> if op `elem` [And, Or]
+        then bothTypesEqual env e1 e2 TBool
+        else bothTypesEqual env e1 e2 TNumber
+    TNeg e          -> do
+        t <- typeCheck env e
+        case t of
+            TNumber -> return TNumber
+            _       -> lift Nothing
 
---bothTypesEqual :: TEnv -> TTm -> TTm -> Type -> Maybe Type
---bothTypesEqual :: TTm -> TTm -> TEnv -> (TEnv, Maybe Type)
-bothTypesEqual :: TTm -> TTm -> Type -> StateT SEnv Maybe Type
-bothTypesEqual e1 e2 t  = do
-    t1 <- typeCheck e1
-    t2 <- typeCheck e2
+bothTypesEqual :: TEnv -> TTm -> TTm -> Type -> StateT SEnv Maybe Type
+bothTypesEqual env e1 e2 t  = do
+    t1 <- typeCheck env e1
+    t2 <- typeCheck env e2
     if t1 == t && t2 == t then
         return t
     else
@@ -90,15 +124,13 @@ bothTypesEqual e1 e2 t  = do
 
 loseType :: TTm -> Tm
 loseType = \case
-    TVar n     -> Var n
-    TLam n _ e -> Lam n (loseType e)
-    TApp t u   -> App (loseType t) (loseType u)
-    TLet n t u -> Let n (loseType t) (loseType u)
-    TLit l     -> Lit l
-    TPlus t u  -> Plus (loseType t) (loseType u)
-    TAnd t u   -> And (loseType t) (loseType u)
-    TTimes t u -> Times (loseType t) (loseType u)
-    TOr t u    -> Or (loseType t) (loseType u)
+    TVar n        -> Var n
+    TLam n _ e    -> Lam n (loseType e)
+    TApp t u      -> App (loseType t) (loseType u)
+    TLet n t u    -> Let n (loseType t) (loseType u)
+    TLit l        -> Lit l
+    TNeg t        -> Neg (loseType t)
+    TBinOp op t u -> BinOp op (loseType t) (loseType u)
 
 --- Evaluation ---
 
@@ -108,10 +140,8 @@ data Tm
     | App Tm Tm
     | Let Name Tm Tm
     | Lit Literal
-    | Plus Tm Tm
-    | Times Tm Tm
-    | And Tm Tm
-    | Or Tm Tm
+    | Neg Tm
+    | BinOp BinOp Tm Tm
 --    deriving Show
 
 showTm :: Tm -> String
@@ -121,18 +151,16 @@ showTm = \case
     Lam n t       -> unwords ["(\\",T.unpack n,"->",showTm t,")"]
     Let n t u     -> unwords ["(let",T.unpack n,"=",showTm t,showTm u,")"]
     Lit (LBool l) -> show l
-    Lit (LInt l)  -> show l
+    Lit (LNumber l)  -> show l
     Lit LTop      -> "()"  --TODO : we can make this empty, its only () for debug
-    Plus t u      -> unwords [showTm t,"+",showTm u]
-    Times t u     -> unwords [showTm t,"*",showTm u]
-    And t u       -> unwords [showTm t,"&",showTm u]
-    Or t u        -> unwords [showTm t,"|",showTm u]
+    Neg    t      -> unwords ["-",showTm t]
+    BinOp op t u  -> unwords [showTm t,show op,showTm u]
 
 instance Show Tm where
     show = showTm
 
 data Literal
-    = LInt Int
+    = LNumber Number -- Ring a
     | LBool Bool
     | LTop
     deriving Show
@@ -143,8 +171,12 @@ data Val
     | VApp Val Val
     | VLam Name (Val -> Val)
     | VLit Literal
-    | VAnd Val Val
-    | VOr  Val Val
+    | VNeg Val --this might not be needed
+    | VBinOp BinOp Val Val
+
+pattern VBool b = VLit (LBool b)
+pattern VNumber n = VLit (LNumber n)
+
 
 freshName :: [Name] -> Name -> Name
 freshName ns x = if x `elem` ns
@@ -155,7 +187,6 @@ vLamApp :: Val -> Val -> Val
 vLamApp (VLam _ t) u = t u
 vLamApp t          u = VApp t u
 
---evalTerm :: Env -> Tm -> Val
 evalTerm :: Tm -> State SEnv Val
 evalTerm = \case
     Var n     -> do
@@ -175,62 +206,41 @@ evalTerm = \case
         e' <- evalTerm e
         modify $ insertName (n , e')
         evalTerm u
-        --evalTerm ((n, evalTerm env t):env) u
     Lit l     -> return $ VLit l
-    --TODO :  Le kell kezelni hogy mivan ha az egyik érték változó
-    Plus e u  -> do
+    Neg e     -> do
+        e' <- evalTerm e
+        return $ case e' of 
+            (VNumber i) -> VNumber (- i) -- TODO maybe other cases need to be handled?
+    BinOp op e u -> do
         e' <- evalTerm e
         u' <- evalTerm u
-        return $ VLit $ LInt $ isBothInt e' u' (+)
-    Times e u -> do
-        e' <- evalTerm e
-        u' <- evalTerm u
-        return $ VLit $ LInt $ isBothInt e' u' (*)
-    And e u   -> do
-        e' <- evalTerm e
-        u' <- evalTerm u
-        case isBothBool e' u' (&&) of
-            Left v -> return v
-            Right (v1, v2) -> return $ VAnd v1 v1
-        --return $ VLit $ LBool $ isBothBool e' u' (&&)
-    Or e u    -> do
-        e' <- evalTerm e
-        u' <- evalTerm u
-        case isBothBool e' u' (||) of
-            Left v -> return v
-            Right (v1, v2) -> return $ VOr v1 v2
-        --return $ VLit $ LBool $ isBothBool e' u' (||)
+        return $ case (op , e', u') of
+            (And    , VBool i   , VBool j  ) -> VBool   $ i && j
+            (Or     , VBool i   , VBool j  ) -> VBool   $ i || j
+            (Eq     , VBool i   , VBool j  ) -> VBool   $ i == j
+            (Eq     , VNumber i , VNumber j) -> VBool   $ i == j
+            (Plus   , VNumber i , VNumber j) -> VNumber $ i + j
+            (Times  , VNumber i , VNumber j) -> VNumber $ i * j
+            (Minus  , VNumber i , VNumber j) -> VNumber $ i - j
+            (Div    , VNumber i , VNumber j) -> VNumber $ i `div` j -- TODO solve this
+            (IntDiv , VNumber i , VNumber j) -> VNumber $ i `div` j  
+            (Mod    , VNumber i , VNumber j) -> VNumber $ i `mod` j
+            (Pow    , VNumber i , VNumber j) -> VNumber $ i ^ j
+            (Lte    , VNumber i , VNumber j) -> VBool   $ i <= j
+            (Gte    , VNumber i , VNumber j) -> VBool   $ i >= j
+            (Lt     , VNumber i , VNumber j) -> VBool   $ i < j
+            (Gt     , VNumber i , VNumber j) -> VBool   $ i > j
+            (_      ,   a       , b        ) -> VBinOp op a b
 
--- Hopefully bug is fixed, but laos fix it for Int, and future operators!!
--- TODO : bug here, variable inside function will fail here
--- If either is a VVar then we should like somehow keep the fact that it is a VVar and keep VLam as a function
-isBothBool :: Val -> Val -> (Bool -> Bool -> Bool) -> Either Val (Val,Val)
-isBothBool v v' f = case v of
-    VLit (LBool i) -> case v' of 
-        VLit (LBool j) -> Left $ VLit $ LBool $ f i j
-        VVar n'        -> Right (VLit (LBool i), VVar n')
-    VVar n         -> case v' of
-        VLit (LBool j) -> Right (VVar n, VLit (LBool j))
-        VVar n'        -> Right (VVar n, VVar n')
-
-isBothInt :: Val -> Val -> (Int -> Int -> Int) -> Int
-isBothInt v v' f = case v of
-    VLit (LInt i) -> case v' of
-        VLit (LInt j) -> f i j
-
--- Here be builtin functions
-
---quoteTerm :: Val -> State SEnv Tm
 quoteTerm :: [Name] -> Val -> Tm
 quoteTerm ns = \case
     VVar x                      -> Var x
     VApp t u                    -> App (quoteTerm ns t) (quoteTerm ns u)
     VLit l                      -> Lit l
     VLam (freshName ns -> x) t  -> Lam x (quoteTerm (x:ns) (t (VVar x)))
-    VAnd  l r                   -> And (quoteTerm ns l) (quoteTerm ns r) 
-    VOr  l r                    -> Or (quoteTerm ns l) (quoteTerm ns r) 
+    VNeg t                      -> Neg (quoteTerm ns t)
+    VBinOp op l r               -> BinOp op (quoteTerm ns l) (quoteTerm ns r)
 
--- TODO
 normalForm :: Tm -> State SEnv Tm
 normalForm tm = do
     val <- evalTerm tm
