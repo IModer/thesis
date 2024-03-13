@@ -10,8 +10,8 @@ import Text.Megaparsec.Error
 
 import Core
 import Ring
---import Parser
-import ParserNew
+--import ParserDepr
+import Parser
 import qualified Data.Text as T
 
 main :: IO ()
@@ -68,7 +68,6 @@ runRepl = do
             print_ tm
             runRepl 
 -}
-
 
 read_ :: IO String
 read_ = do
