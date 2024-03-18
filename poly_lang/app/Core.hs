@@ -48,6 +48,7 @@ instance Show PrefixOp where
         Irred  -> "irred"
         Der    -> "derivative"
 
+-- Abs
 data BinOp
     = And
     | Or
@@ -91,7 +92,7 @@ data Type
 
 runTypedTerm :: TTm -> StateT SEnv Maybe Tm
 runTypedTerm tm = do
-    t <- typeCheck [] tm
+    _ <- typeCheck [] tm
     (state . runState) $ normalForm (loseType tm) -- Unbox and box (StateT Id -> StateT Maybe)
 
 --- Type Checking ---
@@ -158,6 +159,8 @@ data Tm
     | Lit Literal
     | Prefix PrefixOp Tm
     | BinOp BinOp Tm Tm
+--    | BinOpBool (Bool -> Bool -> Bool) Tm Tm
+--    | BinOpNumber (Number -> Number -> Number) Tm Tm
 --    deriving Show
 
 showTm :: Tm -> String
@@ -190,9 +193,11 @@ data Val
     | VPrefix PrefixOp Val
     | VBinOp BinOp Val Val
 
+pattern VBool :: Bool -> Val
 pattern VBool b = VLit (LBool b)
-pattern VNumber n = VLit (LNumber n)
 
+pattern VNumber :: Number -> Val
+pattern VNumber n = VLit (LNumber n)
 
 freshName :: [Name] -> Name -> Name
 freshName ns x = if x `elem` ns
@@ -210,7 +215,7 @@ evalTerm = \case
         env <- get
         return $ fromJust $ lookup n $ nameEnv env -- NOTE: fromJust is safe
     App t u   -> do
-        env <- get
+--        env <- get
         t' <- evalTerm t
         u' <- evalTerm u 
         return $ vLamApp t' u'
@@ -251,7 +256,7 @@ evalTerm = \case
             (Gte    , VNumber i , VNumber j) -> VBool   $ i >= j
             (Lt     , VNumber i , VNumber j) -> VBool   $ i < j
             (Gt     , VNumber i , VNumber j) -> VBool   $ i > j
-            (_      ,   a       , b        ) -> VBinOp op a b
+            (_      , a         , b        ) -> VBinOp op a b
 
 quoteTerm :: [Name] -> Val -> Tm
 quoteTerm ns = \case

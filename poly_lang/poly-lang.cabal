@@ -69,11 +69,16 @@ executable poly-lang
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:    base ^>=4.17.2.1, megaparsec, mtl, parser-combinators, text
+    build-depends:      base ^>=4.17.2.1, 
+                        megaparsec,
+                        mtl,
+                        parser-combinators, 
+                        text,
+                        poly
     -- transformers
 
     -- Directories containing source files.
-    hs-source-dirs:   app
+    hs-source-dirs:     app
 
     -- Base language which the package is written in.
     default-language: GHC2021

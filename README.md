@@ -94,6 +94,10 @@ Sima Listák (Vector)
 esetleg lista ami tárolj a hosszát (rank) de akkor azt be kell tartani mert Haskellbe (langage mágia nélkül) nem lehet betartatni
 amikor létre jön egy akkor autómatikusan szimplifikálódok
 
+v
+
+Data.Poly
+
 ### Műveletek
 
 Számok:
@@ -165,13 +169,28 @@ Better folder structure (Core\Type.hs, Core\Run.hs, ...)
 
 Code formating (pl.: [ormolu](https://github.com/tweag/ormolu))
 
-Make Repl remember previous commands
+Make Repl remember previous commands : [haskeline](https://hackage.haskell.org/package/haskeline)
 
 Better error messages, both parsing and typing errors
 
 Add timing, and other repl/exe features like loading files
 
 Documentation
+
+HOAS a műveletekre:
+
+BinOpNum (N -> N -> N) Tm Tm
+
+ahol
+
+data N a = forall a. Integral a, Num a => N a 
+
+De ilyenkor implementálni kell a saját :
+  
+  Frac -ra
+  Real -re (akármi is a reprezentáció)
+  és Complexre
+  
 
 ### References so far
 
