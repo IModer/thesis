@@ -1,10 +1,6 @@
 module Ring where
 
---import Data.Complex
---import Data.List
--- TODO : Look into complex-generic
 import Prelude hiding (mod, div)
---import Data.Complex
 import Data.Ratio
 
 --TODO: move this to some lib
@@ -12,22 +8,6 @@ zipWithPad :: (a -> b -> c) -> a -> b -> [a] -> [b] -> [c]
 zipWithPad f da db xs []         = zipWith f xs (repeat db)
 zipWithPad f da db [] ys         = zipWith f (repeat da) ys 
 zipWithPad f da db (x:xs) (y:ys) = f x y : zipWithPad f da db xs ys
-
-{- |  
-Ring a
-Its main use is in the Polynomial typeclass
-It should satisfy the following laws
-@
-    (+):
-    a + (b + c) == (a + b) + c
-    a + zero == zero + a == a
-    a + (-a) == (-a) + a == zero
-
-    (*):
-    a * (b * c) == (a * b) * c
-    a * one == one + a == a
-@
--}
 
 -- Saját Complex típus
 
