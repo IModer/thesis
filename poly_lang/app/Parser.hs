@@ -51,7 +51,6 @@ data Type
 
 -}
 
--- TODO: Change it to Text
 type Parser = Parsec Void Text
 
 ws :: Parser ()
@@ -161,8 +160,6 @@ pExpr = makeExprParser pExprT operatorTable
 pBind :: Parser Text
 pBind  = pIdent <|> symbol "_"
 
--- TODO : Lam could be a prefix operator
---pLam :: Parser TTm
 pLam :: Parser TTm
 pLam = do
     void $ char '\\'
@@ -173,8 +170,6 @@ pLam = do
     u <- pTm
     return $ TLam x t u
 
-
--- TODO : Let could also be a prefix operator
 pLet :: Parser TTm
 pLet = do
     pKeyword "let"
@@ -183,7 +178,7 @@ pLet = do
     t <- pTm
     void $ symbol ";"
     u <- pTm
-    TLet x t u'
+    return $ TLet x t u
 
 pBaseType :: Parser Type
 pBaseType = choice
@@ -285,9 +280,9 @@ pCommand = do
 pSrc :: Parser (Option TTm Command TopDef)
 pSrc = ws *> eitherOptionP pTm pCommand pTopDef  <* eof
 
-type ParserErrorT = ParseErrorBundle Text Void
+type ParserErrorT = Either (ParseErrorBundle Text Void)
 
-type ParserOutput = Either ParserErrorT (Option TTm Command TopDef)
+type ParserOutput = ParserErrorT (Option TTm Command TopDef)
 
 parseString :: Text -> ParserOutput
 parseString = parse pSrc "(stdin)"

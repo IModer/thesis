@@ -56,8 +56,12 @@ read_ = do
     hFlush stdout
     getLine
 
--- TODO
---                           ParserOutput type
+-- TODO : :: String -> State GEnv String
+-- GEnv :: [(Name, (Type, Tm))]
+-- GEnv be a VarDef és LetDef topdef ek pakolnak 
+--      és a runTypedTerm használja 
+-- kell : executeCommand, executeTopDef, 
+--        utóbbi akár inline is lehet
 eval :: String -> State SEnv String
 eval cs = case parseString $ T.pack cs of
     Left a   -> return $ errorBundlePretty a        -- TODO : print errors
@@ -73,7 +77,6 @@ eval cs = case parseString $ T.pack cs of
                 Just (tm',env') -> return (show tm',env')
                 Nothing         -> return ("Type error",env)
 
--- ParserOutput type ot kiprinteli
 print_ :: String -> IO ()
 print_ = putStrLn
 

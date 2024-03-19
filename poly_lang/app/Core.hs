@@ -10,6 +10,8 @@ import Data.Functor.Identity
 import qualified Data.Text as T
 import Ring hiding (mod, div)
 
+-- TODO : lose TTm into Tm
+
 --type Name = String
 type Name = T.Text
 
@@ -90,6 +92,7 @@ data Type
     | TTop
     deriving (Show, Eq)
 
+-- TODO:     :: TTm -> StateT GEnv Maybe Tm
 runTypedTerm :: TTm -> StateT SEnv Maybe Tm
 runTypedTerm tm = do
     _ <- typeCheck [] tm
@@ -97,6 +100,20 @@ runTypedTerm tm = do
 
 --- Type Checking ---
 --           TEnv is Context for lambdas
+--        :: TTm -> StateT (TEnv, GEnv) Maybe Type
+{-
+    TEnv :: [(Name, Type)]
+    GEnv :: [(Name, (Type, Tm))]
+    kell : 
+        var x     : lookup x in TEnv or GEnv
+        let x e u : t <- typecheck e; insert (e,t) into TEnv; typecheck u
+        lam x t e : insert (x,t) into TEnv; typecheck e; ...
+        app e1 e2 : typecheck e1 e2, ...
+        binop, prefix hasonlóan
+
+    vagyis nem insertelünk GEnv be csak a val-nál keresünk benne
+
+-}
 typeCheck :: TEnv -> TTm -> StateT SEnv Maybe Type
 typeCheck env = \case
     TLit (LNumber  _) -> return TNumber
@@ -118,6 +135,7 @@ typeCheck env = \case
         case t1 of
             (TArr t t') | t == t2 -> return t'
             _                     -> lift Nothing
+    -- Ezt még át kell gondolni, pl.: most true = false nem valid, pedig annak kéne lennie
     TBinOp op e1 e2 -> if op `elem` [And, Or]
         then bothTypesEqual env e1 e2 TBool
         else bothTypesEqual env e1 e2 TNumber
@@ -184,7 +202,6 @@ data Literal
     | LTop
     deriving Show
 
--- Operators/Functions should also have Val : like +, *, ...
 data Val
     = VVar Name
     | VApp Val Val
@@ -208,7 +225,15 @@ vLamApp :: Val -> Val -> Val
 vLamApp (VLam _ t) u = t u
 vLamApp t          u = VApp t u
 
--- TODO: Evaluation of prefix , binop maybe can be done with functor instance
+-- TODO: HOAS binop és prefix
+{-
+    GEnv :: [(Name, (Type, Tm))]
+    Env  :: [(Name, Tm)]
+
+    typecheck hez hasonlóan csak a a var lookupol 
+    GEnv és Env ben, minden más csak pakol Env-be 
+-}
+-- TODO: :: Tm -> State (Env, GEnv)
 evalTerm :: Tm -> State SEnv Val
 evalTerm = \case
     Var n     -> do
