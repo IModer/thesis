@@ -3,6 +3,7 @@
 module Parser where
 
 import Core hiding (Prefix)
+import Lib
 
 import Control.Applicative hiding (many, some)
 import Control.Monad
@@ -69,7 +70,7 @@ parens :: Parser a -> Parser a
 parens p   = char '(' *> p <* char ')'
 
 keywords :: [Name]
-keywords = ["\\", "let", "mod", "div", "factor", "irred", "derivative"]
+keywords = ["\\", "let", "mod", "div", "factor", "irred", "derivative", "var"]
 
 keyword :: Text -> Bool
 keyword x = x `elem` keywords
@@ -181,10 +182,8 @@ pLet = do
     void $ symbol ":="
     t <- pTm
     void $ symbol ";"
-    u <- optional pTm
-    return $ case u of
-        Just u' -> TLet x t u'
-        Nothing -> TLet x t $ TLit LTop
+    u <- pTm
+    TLet x t u'
 
 pBaseType :: Parser Type
 pBaseType = choice
@@ -208,8 +207,87 @@ pTm  = try (choice
     , {-dbg "letbind"-} parens pTm
     ] <?> "a valid term")
 
-pSrc :: Parser TTm
-pSrc = ws *> pTm <* eof
+data Command
+    = PrintHelp         -- :h      | : help
+    | RunTimed          -- :b <tm> | :timeit <tm>  -- Bentchmark
+    | Quit              -- :q      | :quit
+    | LoadFile          -- :l <f> <f2> ... | :load <f> <f2> ...
+    | GetType           -- :t      | :type
+    | GetInfo           -- :i <topic> | :info
+    deriving Show
 
-parseString :: Text -> Either (ParseErrorBundle Text Void) TTm
-parseString src = parse pSrc "(stdin)" src
+data TopDef
+    = LetDef Name TTm
+    | VarDef Name
+    deriving Show
+
+pLetDef :: Parser TopDef
+pLetDef = do
+    pKeyword "let"
+    x <- pBind
+    void $ symbol ":="
+    t <- pTm
+    void $ symbol ";"
+    return $ LetDef x t
+
+pVarDef :: Parser TopDef
+pVarDef = do
+    void $ symbol "var"
+    i <- pIdent
+    return $ VarDef i
+
+pTopDef :: Parser TopDef
+pTopDef = pLetDef <|> pVarDef
+
+pSimpleCommand :: Char -> Text -> Command -> Parser Command
+pSimpleCommand c s co = do
+    choice [void $ C.string s, void $ C.char c]
+    return co
+
+pFileName :: Parser Text
+pFileName = undefined -- TODO
+
+pInfoTopic :: Parser Text
+pInfoTopic = undefined -- TODO
+
+pLoadFileCommand :: Parser ([Text], Command)
+pLoadFileCommand = do
+    choice [void $ C.string "load", void $ C.char 'l']
+    filenames <- many pFileName
+    return (filenames, LoadFile)
+
+pGetInfoType :: Parser (Text, Command)
+pGetInfoType = do
+    choice [void $ C.string "info", void $ C.char 'i']
+    infotopic <- pInfoTopic
+    return (infotopic, GetInfo)
+
+pGetTypeCommand :: Parser (TTm , Command)
+pGetTypeCommand = do
+    choice [void $ C.string "type", void $ C.char 't']
+    tm <- pTm
+    return (tm , GetType)
+
+pRunTimedCommand :: Parser (TTm , Command)
+pRunTimedCommand = do
+    choice [void $ C.string "timeit", void $ C.char 'b']
+    tm <- pTm
+    return (tm , RunTimed)
+
+pCommand :: Parser Command
+pCommand = do
+    void $ C.char ':'
+    choice
+        [ pSimpleCommand 'h' "help" PrintHelp
+        , pSimpleCommand 'q' "quit" Quit
+        ]
+
+pSrc :: Parser (Option TTm Command TopDef)
+pSrc = ws *> eitherOptionP pTm pCommand pTopDef  <* eof
+
+type ParserErrorT = ParseErrorBundle Text Void
+
+type ParserOutput = Either ParserErrorT (Option TTm Command TopDef)
+
+parseString :: Text -> ParserOutput
+parseString = parse pSrc "(stdin)"

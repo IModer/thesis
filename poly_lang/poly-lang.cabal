@@ -74,7 +74,9 @@ executable poly-lang
                         mtl,
                         parser-combinators, 
                         text,
-                        poly
+                        poly,
+                        vector,
+                        semirings
     -- transformers
 
     -- Directories containing source files.

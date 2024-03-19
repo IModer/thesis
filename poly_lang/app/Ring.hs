@@ -2,6 +2,7 @@ module Ring where
 
 import Prelude hiding (mod, div)
 import Data.Ratio
+import Data.Poly
 
 --TODO: move this to some lib
 zipWithPad :: (a -> b -> c) -> a -> b -> [a] -> [b] -> [c]
@@ -115,6 +116,20 @@ test = [(/+/),
         mod
 --        (.^)
         ]
+
+--- Polinomials
+
+-- Need :
+--      Field (Complex Rational)
+--      Ring  (Complex Rational)
+--      or more generally, for all 
+--      Field/Ring a => Field/Ring (Complex a)
+
+p1 :: VPoly (Complex Rational)
+p1 = 2 * X + 3
+
+p2 :: VPoly (Complex Rational)
+p2 = X * X + X
 
 factor :: Number -> Number
 factor a = undefined

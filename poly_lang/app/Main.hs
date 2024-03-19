@@ -10,7 +10,7 @@ import Text.Megaparsec.Error
 
 import Core
 import Ring
---import ParserDepr
+import Lib
 import Parser
 import qualified Data.Text as T
 
@@ -50,57 +50,30 @@ printHelpOnTopic "topic" = putStrLn "Current topics: \n\t\tDummy\n\t\ttopic"
 printHelpOnTopic "Dummy" = putStrLn "This is the docs of Dummy. Its me i am the dummy :D"
 printHelpOnTopic _       = putStrLn "No such topic, run `docs topic` to see avaliable topics\n"
 
-{-
-runRepl is ::   (read : IO String) -> 
-                (eval : String -> String) -> 
-                (print : String -> IO ()) ->
-                (runRepl/loop : IO ()) 
--}
-
-
---  :q - quit is handled here
-{-
-runRepl :: IO ()
-runRepl = do
-    input <- read_
-    unless (input == ":q") $ do
-        let tm = eval_ input in do 
-            print_ tm
-            runRepl 
--}
-
 read_ :: IO String
 read_ = do
     putStr "poly> "
     hFlush stdout
     getLine
 
--- Handle repl option like : :q - quit, :h - help, ...
--- Depr
-{-
-eval_ :: String -> String
-eval_ (':':'h':_) = "This is a help"
-eval_ cs          = case parseString cs of
-    Left a  -> errorBundlePretty a
-    Right t -> maybe
-                "Typechecking failed"
-                CD.prettyPrint
-                $ CD.runTypedTerm t
--}
-
+-- TODO
+--                           ParserOutput type
 eval :: String -> State SEnv String
 eval cs = case parseString $ T.pack cs of
     Left a   -> return $ errorBundlePretty a        -- TODO : print errors
-    Right tm -> do
-        env <- get
-        mapStateT (handleMaybe env) (runTypedTerm tm)
-
+    Right tm_co -> case tm_co of
+        OLeft tm -> do
+            env <- get
+            mapStateT (handleMaybe env) (runTypedTerm tm)
+        OMiddle def -> return $ show def
+        ORight co -> return $ show co
         where
             handleMaybe :: SEnv -> Maybe (Tm , SEnv) -> Identity (String, SEnv)
             handleMaybe env m = case m of
                 Just (tm',env') -> return (show tm',env')
                 Nothing         -> return ("Type error",env)
 
+-- ParserOutput type ot kiprinteli
 print_ :: String -> IO ()
 print_ = putStrLn
 
@@ -114,4 +87,3 @@ runStatefulRepl = do
         tm <- (state . runState) $ eval inp     -- Unbox and box (StateT Id -> StateT IO)
         lift $ print_ tm                        -- Lift IO into StateT IO
         runStatefulRepl
-
