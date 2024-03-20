@@ -69,7 +69,7 @@ parens :: Parser a -> Parser a
 parens p   = char '(' *> p <* char ')'
 
 keywords :: [Name]
-keywords = ["\\", "let", "mod", "div", "factor", "irred", "derivative", "var"]
+keywords = ["\\", "let", "in", "def", "mod", "div", "factor", "irred", "derivative", "var"]
 
 keyword :: Text -> Bool
 keyword x = x `elem` keywords
@@ -78,7 +78,6 @@ pKeyword :: Text -> Parser ()
 pKeyword kw = do
     void $ C.string kw
     (takeWhile1P Nothing isAlphaNum *> empty) <|> ws
-
 
 -- TODO : this is magic i should ask what it does
 pIdent :: Parser Name
@@ -176,7 +175,7 @@ pLet = do
     x <- pBind
     void $ symbol ":="
     t <- pTm
-    void $ symbol ";"
+    void $ symbol "in"
     u <- pTm
     return $ TLet x t u
 
@@ -218,11 +217,11 @@ data TopDef
 
 pLetDef :: Parser TopDef
 pLetDef = do
-    pKeyword "let"
+    pKeyword "def"
     x <- pBind
     void $ symbol ":="
     t <- pTm
-    void $ symbol ";"
+    --void $ symbol ";"  --?
     return $ LetDef x t
 
 pVarDef :: Parser TopDef
