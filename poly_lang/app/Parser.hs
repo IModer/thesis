@@ -202,12 +202,12 @@ pTm  = try (choice
     ] <?> "a valid term")
 
 data Command
-    = PrintHelp         -- :h      | : help
-    | RunTimed          -- :b <tm> | :timeit <tm>  -- Bentchmark
-    | Quit              -- :q      | :quit
-    | LoadFile          -- :l <f> <f2> ... | :load <f> <f2> ...
-    | GetType           -- :t      | :type
-    | GetInfo           -- :i <topic> | :info
+    = PrintHelp         -- :h              | : help
+    | RunTimed TTm      -- :b <tm>         | :timeit <tm>  -- Bentchmark
+    | Quit              -- :q              | :quit
+    | LoadFile [Name]   -- :l <f> <f2> ... | :load <f> <f2> ...
+    | GetType  TTm      -- :t <tm>         | :type <tm>
+    | GetInfo  Topic     -- :i <topic>      | :info <topic>
     deriving Show
 
 data TopDef
@@ -241,32 +241,37 @@ pSimpleCommand c s co = do
 pFileName :: Parser Text
 pFileName = undefined -- TODO
 
-pInfoTopic :: Parser Text
+data Topic
+    = MetaTopic
+    | Dummy
+    deriving Show
+
+pInfoTopic :: Parser Topic
 pInfoTopic = undefined -- TODO
 
-pLoadFileCommand :: Parser ([Text], Command)
+pLoadFileCommand :: Parser Command
 pLoadFileCommand = do
     choice [void $ C.string "load", void $ C.char 'l']
     filenames <- many pFileName
-    return (filenames, LoadFile)
+    return $ LoadFile filenames
 
-pGetInfoType :: Parser (Text, Command)
-pGetInfoType = do
+pGetInfoCommand :: Parser Command
+pGetInfoCommand = do
     choice [void $ C.string "info", void $ C.char 'i']
     infotopic <- pInfoTopic
-    return (infotopic, GetInfo)
+    return $ GetInfo infotopic
 
-pGetTypeCommand :: Parser (TTm , Command)
+pGetTypeCommand :: Parser Command
 pGetTypeCommand = do
     choice [void $ C.string "type", void $ C.char 't']
     tm <- pTm
-    return (tm , GetType)
+    return $ GetType tm
 
-pRunTimedCommand :: Parser (TTm , Command)
+pRunTimedCommand :: Parser Command
 pRunTimedCommand = do
     choice [void $ C.string "timeit", void $ C.char 'b']
     tm <- pTm
-    return (tm , RunTimed)
+    return $ RunTimed tm
 
 pCommand :: Parser Command
 pCommand = do
@@ -274,6 +279,10 @@ pCommand = do
     choice
         [ pSimpleCommand 'h' "help" PrintHelp
         , pSimpleCommand 'q' "quit" Quit
+        , pRunTimedCommand
+        , pGetTypeCommand
+        , pGetInfoCommand
+        , pLoadFileCommand
         ]
 
 pSrc :: Parser (Option TTm Command TopDef)

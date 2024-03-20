@@ -22,9 +22,9 @@ main = do
 
 parseArgs :: [String] -> IO ()
 parseArgs ("load":files)   = loadFiles files
-parseArgs ("help":_)       = printHelp
-parseArgs ("docs":topic:_) = printHelpOnTopic topic
-parseArgs _                = putStrLn "No such command\n" >> printHelp
+parseArgs ("help":_)       = putStrLn help
+parseArgs ("docs":topic:_) = putStrLn $ helpOnTopic undefined -- here : topic -(parsing with pInfoTopic)-> ?
+parseArgs _                = putStrLn "No such command\n" >> putStrLn help
 
 loadFiles :: [String] -> IO ()
 loadFiles []     = putStrLn ""
@@ -39,16 +39,16 @@ loadFile xs = do
     print "asd"
 -}
 
-printHelp :: IO ()
-printHelp = putStrLn "Usage : poly_lang.exe <command>   \n\
+help :: String
+help = "Usage : poly_lang.exe <command>   \n\
                       \Commands: \tload <file1> [<file2> ...] - loads the specified files\n\
                       \ \t\thelp - prints this help\n\
                       \ \t\tdocs <topic> - Prints help on the specified topic, use `docs topis` to print out the available topics"
 
-printHelpOnTopic :: String -> IO ()
-printHelpOnTopic "topic" = putStrLn "Current topics: \n\t\tDummy\n\t\ttopic"
-printHelpOnTopic "Dummy" = putStrLn "This is the docs of Dummy. Its me i am the dummy :D"
-printHelpOnTopic _       = putStrLn "No such topic, run `docs topic` to see avaliable topics\n"
+helpOnTopic :: Topic -> String
+helpOnTopic MetaTopic = "Current topics: \n\t\tDummy\n\t\ttopic"
+helpOnTopic Dummy     = "This is the docs of Dummy. Its me i am the dummy :D"
+helpOnTopic _         = "No such topic, run `docs topic` to see avaliable topics\n"
 
 read_ :: IO String
 read_ = do
@@ -69,7 +69,7 @@ eval cs = case parseString $ T.pack cs of
         OLeft tm -> do
             env <- get
             mapStateT (handleMaybeTm env) (runTypedTerm tm)
-        OMiddle co -> handleCommand co
+        OMiddle co -> return $ handleCommand co
         ORight def -> do
             env <- get
             --mapStateT (maybe (Identity ("Type error", env)) (Identity . id)) (handleTopDef def)
@@ -106,8 +106,14 @@ handleTopDef def = case def of
     where
 
 
-handleCommand :: Command -> State SEnv String
-handleCommand = undefined
+handleCommand :: Command -> String
+handleCommand co = case co of
+    PrintHelp   -> undefined     
+    RunTimed tm -> undefined  
+    Quit        -> undefined   
+    LoadFile ns -> undefined
+    GetType  tm -> undefined  
+    GetInfo  tp -> helpOnTopic tp
 
 print_ :: String -> IO ()
 print_ = putStrLn
