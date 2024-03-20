@@ -68,14 +68,46 @@ eval cs = case parseString $ T.pack cs of
     Right tm_co -> case tm_co of
         OLeft tm -> do
             env <- get
-            mapStateT (handleMaybe env) (runTypedTerm tm)
-        OMiddle def -> return $ show def
-        ORight co -> return $ show co
-        where
-            handleMaybe :: SEnv -> Maybe (Tm , SEnv) -> Identity (String, SEnv)
-            handleMaybe env m = case m of
-                Just (tm',env') -> return (show tm',env')
-                Nothing         -> return ("Type error",env)
+            mapStateT (handleMaybeTm env) (runTypedTerm tm)
+        OMiddle co -> handleCommand co
+        ORight def -> do
+            env <- get
+            --mapStateT (maybe (Identity ("Type error", env)) (Identity . id)) (handleTopDef def)
+            mapStateT (handleMaybeString env) (handleTopDef def)
+
+-- maybe :: b -> (a -> b) -> Maybe a -> b
+-- a = (String,SEnv)
+-- b = (String,SEnv)
+-- maybe :: (String,SEnv) -> ((String,SEnv) -> (String,SEnv)) -> Maybe (String,SEnv) -> (String,SEnv)
+-- maybe ("Type error", env) (id) (handleTopDef def) 
+handleMaybeString :: SEnv -> Maybe (String, SEnv) -> Identity (String, SEnv)
+handleMaybeString env = maybe (Identity ("Type error", env)) (Identity . id)
+
+handleMaybeTm :: SEnv -> Maybe (Tm , SEnv) -> Identity (String, SEnv)
+handleMaybeTm env m = case m of
+    Just (tm',env') -> return (show tm',env')
+    Nothing         -> return ("Type error",env)
+
+handleTopDef :: TopDef -> StateT SEnv Maybe String
+handleTopDef def = case def of
+    -- We typecheck and eval ttm and then store it in Env
+    LetDef name ttm -> do
+        t <- (typeCheck [] ttm)
+        val <- (state . runState) $ evalTerm (loseType ttm)
+        modify $ insertType (name, t)
+        modify $ insertName (name, val)
+        return ("saved " ++ T.unpack name)
+    -- We save the fact that name has type Poly 
+    -- and save it as polyvar 
+    VarDef name    -> do
+        modify $ insertType (name, TTop) -- TODO : No TTop
+        modify $ insertName (name, VLit $ LTop)
+        return ""
+    where
+
+
+handleCommand :: Command -> State SEnv String
+handleCommand = undefined
 
 print_ :: String -> IO ()
 print_ = putStrLn
