@@ -38,9 +38,10 @@ loadFiles filenames = do
             b <- lift $ doesFileExist filename
             if b
                 then do
+                    -- TODO : parse the whole file not lines cos thats what evalFile does
                     con <- lift $ readFile filename
-                    s <- mapM eval (lines con)
-                    return $ ("Loading file : " ++ filename ++ "\n" ++ head s)
+                    s <- evalFile filename con
+                    return ("Loading file : " ++ filename ++ "\n" ++ s)
                 else do
                     return $ "There is no such file : " ++ filename
 
@@ -62,11 +63,27 @@ read_ = do
     hFlush stdout
     getLine
 
--- SEnv should have a Error part where we can signal is the parsing wasnt okay
-eval :: String -> StateT SEnv IO String
-eval cs = case parseString "poly" $ T.pack cs of
+evalFile :: String -> String -> StateT SEnv IO String
+evalFile filename cs = case parseStringFile filename $ T.pack cs of
+    Left a -> return $ errorBundlePretty a
+    Right tms_defs -> do
+        s <- mapM handleTmDef tms_defs
+        return $ unlines s
+    where
+        handleTmDef :: Either TTm TopDef -> StateT SEnv IO String
+        handleTmDef tm_def = case tm_def of
+            Left tm   -> do
+                env <- get
+                lift $ putStrLn $ "running Tm : " ++ show tm
+                mapStateT (handleMaybeTm env) (runTypedTerm tm)
+            Right def -> do
+                env <- get
+                mapStateT (handleMaybeString env) (handleTopDef def)
+
+evalRepl :: String -> StateT SEnv IO String
+evalRepl cs = case parseStringRepl $ T.pack cs of
     Left a   -> return $ errorBundlePretty a        -- TODO : print errors
-    Right tm_co -> case tm_co of
+    Right tm_co_def -> case tm_co_def of
         OLeft tm -> do
             env <- get
             mapStateT (handleMaybeTm env) (runTypedTerm tm)
@@ -76,7 +93,7 @@ eval cs = case parseString "poly" $ T.pack cs of
             mapStateT (handleMaybeString env) (handleTopDef def)
 
 handleMaybeString :: SEnv -> Maybe (String, SEnv) -> IO (String, SEnv)
-handleMaybeString env = maybe (return ("Type error", env)) (return . id)
+handleMaybeString env = maybe (return ("Type error S", env)) return
 
 handleMaybeTm :: SEnv -> Maybe (Tm , SEnv) -> IO (String, SEnv)
 handleMaybeTm env m = case m of
@@ -86,7 +103,7 @@ handleMaybeTm env m = case m of
 handleTopDef :: TopDef -> StateT SEnv Maybe String
 handleTopDef def = case def of
     LetDef name ttm -> do
-        t <- (typeCheck [] ttm)
+        t <- typeCheck [] ttm
         val <- (state . runState) $ evalTerm (loseType ttm)
         modify $ insertType (name, t)
         modify $ insertName (name, val)
@@ -94,7 +111,7 @@ handleTopDef def = case def of
     VarDef name    -> do
         modify $ insertType (name, TPoly) -- TODO : No TTop
         modify $ insertName (name, VPolyVar name)
-        return ""
+        return $ T.unpack name ++ " is now a polinomial variable"
 
 -- This type is not strong enough, cos here we have to do a lot of things like IO, ...
 handleCommand :: Command -> StateT SEnv IO String
@@ -115,6 +132,6 @@ runStatefulRepl :: StateT SEnv IO ()
 runStatefulRepl = do
     inp <- lift read_                           -- Lift IO into StateT IO
     unless (inp == ":q") $ do
-        tm <- eval inp                          -- Eval could print everything so we dont need to worry about passing things to print_
+        tm <- evalRepl inp                          -- Eval could print everything so we dont need to worry about passing things to print_
         lift $ print_ tm                        -- Lift IO into StateT IO
         runStatefulRepl

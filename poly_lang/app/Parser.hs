@@ -53,8 +53,9 @@ data Type
 
 type Parser = Parsec Void Text
 
+-- hspace does noe accept newlines
 ws :: Parser ()
-ws = L.space C.space1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
+ws = L.space C.hspace1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme ws
@@ -148,7 +149,7 @@ postfix n f = Postfix (f <$ symbol n)
 pExprT :: Parser TTm
 pExprT = try $ choice 
     [ 
-      {-dbg "parens expr" -} (parens pExpr) <?> "parens expr"
+      {-dbg "parens expr" -} parens pExpr <?> "parens expr"
     , {-dbg "literal"     -} pLit           <?> "literal"
     , {-dbg "variable"    -} pVariable      <?> "variable"
     ]
@@ -238,9 +239,9 @@ pSimpleCommand c s co = do
     choice [void $ C.string s, void $ C.char c]
     return co
 
+-- TODO : This cannot parse multiple filenames
 pFileName :: Parser Text
 pFileName = takeWhile1P (Just "a file name") (not . isSpace)
-
 
 data Topic
     = MetaTopic
@@ -286,12 +287,28 @@ pCommand = do
         , pLoadFileCommand
         ]
 
-pSrc :: Parser (Option TTm Command TopDef)
-pSrc = ws *> eitherOptionP pTm pCommand pTopDef  <* eof
+pReplLine :: Parser (Option TTm Command TopDef)
+pReplLine = ws *> eitherOptionP pTm pCommand pTopDef <* eof
+
+-- TODO : A newline is always needed for end of file
+pFileLine :: Parser (Either TTm TopDef)
+pFileLine = do
+    tm_def <- eitherP pTm pTopDef
+    C.newline
+    return tm_def
+
+pFile :: Parser [Either TTm TopDef]
+pFile = do
+    tms_defs <- many pFileLine
+    void eof
+    return tms_defs
 
 type ParserErrorT = Either (ParseErrorBundle Text Void)
 
 type ParserOutput = ParserErrorT (Option TTm Command TopDef)
 
-parseString :: String -> Text -> ParserOutput
-parseString file = parse pSrc ("("++file++")")
+parseStringFile :: String -> Text -> ParserErrorT [Either TTm TopDef]
+parseStringFile filename = parse pFile $ "(" ++ filename ++")"
+
+parseStringRepl :: Text -> ParserOutput
+parseStringRepl = parse pReplLine "(poly)"
