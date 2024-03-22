@@ -10,7 +10,8 @@ import Data.Functor.Identity
 import qualified Data.Text as T
 import Ring hiding (mod, div)
 
--- TODO : lose TTm into Tm
+type BoolOpType = Bool -> Bool -> Bool
+type NumOpType = Number -> Number -> Number
 
 --type Name = String
 type Name = T.Text
@@ -33,9 +34,14 @@ data TTm
     | TApp    TTm  TTm
     | TLet    Name TTm  TTm
     | TLit    Literal
+    | TBinOpBool BinOp BoolOpType TTm TTm
+    | TBinOpNum  BinOp NumOpType TTm TTm
     | TBinOp  BinOp TTm TTm
     | TPrefix PrefixOp TTm
-    deriving Show
+--    deriving Show
+
+instance Show TTm where
+    show t = show (loseType t)
 
 data PrefixOp
     = Neg
@@ -89,6 +95,7 @@ data Type
     = TArr Type Type
     | TNumber
     | TBool
+    | TPoly
     | TTop
     deriving (Show, Eq)
 
@@ -136,6 +143,8 @@ typeCheck env = \case
             (TArr t t') | t == t2 -> return t'
             _                     -> lift Nothing
     -- Ezt még át kell gondolni, pl.: most true = false nem valid, pedig annak kéne lennie
+    TBinOpBool _ _ e1 e2 -> bothTypesEqual env e1 e2 TBool
+    TBinOpNum  _ _ e1 e2 -> bothTypesEqual env e1 e2 TNumber
     TBinOp op e1 e2 -> if op `elem` [And, Or]
         then bothTypesEqual env e1 e2 TBool
         else bothTypesEqual env e1 e2 TNumber
@@ -166,6 +175,9 @@ loseType = \case
     TLit l        -> Lit l
     TPrefix op t  -> Prefix op (loseType t)
     TBinOp op t u -> BinOp op (loseType t) (loseType u)
+    TBinOpBool op f t u -> BinOpBool op f (loseType t) (loseType u)
+    TBinOpNum op f t u  -> BinOpNum op f (loseType t) (loseType u)
+
 
 --- Evaluation ---
 
@@ -177,21 +189,23 @@ data Tm
     | Lit Literal
     | Prefix PrefixOp Tm
     | BinOp BinOp Tm Tm
---    | BinOpBool (Bool -> Bool -> Bool) Tm Tm
---    | BinOpNumber (Number -> Number -> Number) Tm Tm
+    | BinOpBool BinOp BoolOpType Tm Tm
+    | BinOpNum  BinOp NumOpType Tm Tm
 --    deriving Show
 
 showTm :: Tm -> String
 showTm = \case
-    Var n         -> T.unpack n
-    App t u       -> unwords ["(",showTm t,showTm u,")"]
-    Lam n t       -> unwords ["(\\",T.unpack n,"->",showTm t,")"]
-    Let n t u     -> unwords ["(let",T.unpack n,"=",showTm t,showTm u,")"]
-    Lit (LBool l) -> show l
-    Lit (LNumber l)  -> show l
-    Lit LTop      -> "()"  --TODO : we can make this empty, its only () for debug
-    Prefix op t   -> unwords [show op ,showTm t]
-    BinOp op t u  -> unwords [showTm t,show op,showTm u]
+    Var n              -> T.unpack n
+    App t u            -> unwords ["(",showTm t,showTm u,")"]
+    Lam n t            -> unwords ["(\\",T.unpack n,"->",showTm t,")"]
+    Let n t u          -> unwords ["(let",T.unpack n,"=",showTm t,showTm u,")"]
+    Lit (LBool l)      -> show l
+    Lit (LNumber l)    -> show l
+    Lit LTop           -> "()"  --TODO : we can make this empty, its only () for debug
+    Prefix op t        -> unwords [show op ,showTm t]
+    BinOp op t u       -> unwords [showTm t,show op,showTm u]
+    BinOpBool op _ t u -> unwords [showTm t,show op,showTm u]
+    BinOpNum  op _ t u -> unwords [showTm t,show op,showTm u]
 
 instance Show Tm where
     show = showTm
@@ -207,8 +221,11 @@ data Val
     | VApp Val Val
     | VLam Name (Val -> Val)
     | VLit Literal
+    | VPolyVar Name
     | VPrefix PrefixOp Val
     | VBinOp BinOp Val Val
+    | VBinOpBool BinOp BoolOpType Val Val
+    | VBinOpNum  BinOp NumOpType Val Val
 
 pattern VBool :: Bool -> Val
 pattern VBool b = VLit (LBool b)
@@ -262,21 +279,26 @@ evalTerm = \case
             (Irred  , VNumber i) -> VBool (irred i)
             (Der    , VNumber i) -> VNumber (derivative i)
             (_      , a        ) -> VPrefix op a
+    BinOpBool op f e u -> do
+        e' <- evalTerm e
+        u' <- evalTerm u
+        return $ case (e', u') of
+            (VBool i, VBool j) -> VBool $ i `f` j
+            (a      , b      ) -> VBinOpBool op f a b
+    BinOpNum op f e u -> do
+        e' <- evalTerm e
+        u' <- evalTerm u
+        return $ case (e', u') of
+            (VNumber i, VNumber j) -> VNumber $ i `f` j
+            (a      , b      )     -> VBinOpNum op f a b
+    -- Here we want to comtroll what output type we have and so on...
     BinOp op e u -> do
         e' <- evalTerm e
         u' <- evalTerm u
         return $ case (op , e', u') of
-            (And    , VBool i   , VBool j  ) -> VBool   $ i && j
-            (Or     , VBool i   , VBool j  ) -> VBool   $ i || j
             (Eq     , VBool i   , VBool j  ) -> VBool   $ i == j
             (Eq     , VNumber i , VNumber j) -> VBool   $ i == j
-            (Plus   , VNumber i , VNumber j) -> VNumber $ i + j
-            (Times  , VNumber i , VNumber j) -> VNumber $ i * j
-            (Minus  , VNumber i , VNumber j) -> VNumber $ i - j
             (Div    , VNumber i , VNumber j) -> VNumber $ i `div` j -- TODO solve this
-            (IntDiv , VNumber i , VNumber j) -> VNumber $ i `div` j  
-            (Mod    , VNumber i , VNumber j) -> VNumber $ i `mod` j
-            (Pow    , VNumber i , VNumber j) -> VNumber $ i ^ j
             (Lte    , VNumber i , VNumber j) -> VBool   $ i <= j
             (Gte    , VNumber i , VNumber j) -> VBool   $ i >= j
             (Lt     , VNumber i , VNumber j) -> VBool   $ i < j
@@ -291,6 +313,9 @@ quoteTerm ns = \case
     VLam (freshName ns -> x) t  -> Lam x (quoteTerm (x:ns) (t (VVar x)))
     VPrefix op l                -> Prefix op (quoteTerm ns l)
     VBinOp op l r               -> BinOp op (quoteTerm ns l) (quoteTerm ns r)
+    VBinOpBool op f l r         -> BinOpBool op f (quoteTerm ns l) (quoteTerm ns r)
+    VBinOpNum op f l r          -> BinOpNum op f (quoteTerm ns l) (quoteTerm ns r)
+    VPolyVar n                  -> Var n
 
 normalForm :: Tm -> State SEnv Tm
 normalForm tm = do

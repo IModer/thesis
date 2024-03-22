@@ -76,7 +76,8 @@ executable poly-lang
                         text,
                         poly,
                         vector,
-                        semirings
+                        semirings,
+                        directory
     -- transformers
 
     -- Directories containing source files.

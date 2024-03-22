@@ -115,18 +115,18 @@ operatorTable =
     , prefix  "derivative" (TPrefix Der)
     ] ,
     [
-      binaryL "*"   (TBinOp Times)
+      binaryL "*"   (TBinOpNum Times (*))
     , binaryL "/"   (TBinOp Div)
-    , binaryL "div" (TBinOp IntDiv)
-    , binaryL "mod" (TBinOp Mod)
+    , binaryL "div" (TBinOpNum IntDiv div)
+    , binaryL "mod" (TBinOpNum Mod    mod)
     , binaryL "="   (TBinOp Eq)
     ] ,
     [ 
-      binaryL "+"   (TBinOp Plus)
-    , binaryL "-"   (TBinOp Minus)
-    , binaryL "|"   (TBinOp Or)
-    , binaryL "&"   (TBinOp And)
-    , binaryL "^"   (TBinOp Pow)
+      binaryL "+"   (TBinOpNum Plus  (+))
+    , binaryL "-"   (TBinOpNum Minus (-))
+    , binaryL "|"   (TBinOpBool Or  (||))
+    , binaryL "&"   (TBinOpBool And (&&))
+    , binaryL "^"   (TBinOpNum Pow   (^))
     , binaryL "<="  (TBinOp Lte)
     , binaryL ">="  (TBinOp Gte)
     , binaryL "<"   (TBinOp Lt)
@@ -204,7 +204,7 @@ pTm  = try (choice
 data Command
     = PrintHelp         -- :h              | : help
     | RunTimed TTm      -- :b <tm>         | :timeit <tm>  -- Bentchmark
-    | Quit              -- :q              | :quit
+--    | Quit              -- :q              | :quit
     | LoadFile [Name]   -- :l <f> <f2> ... | :load <f> <f2> ...
     | GetType  TTm      -- :t <tm>         | :type <tm>
     | GetInfo  Topic     -- :i <topic>      | :info <topic>
@@ -239,7 +239,8 @@ pSimpleCommand c s co = do
     return co
 
 pFileName :: Parser Text
-pFileName = undefined -- TODO
+pFileName = takeWhile1P (Just "a file name") (not . isSpace)
+
 
 data Topic
     = MetaTopic
@@ -251,7 +252,7 @@ pInfoTopic = undefined -- TODO
 
 pLoadFileCommand :: Parser Command
 pLoadFileCommand = do
-    choice [void $ C.string "load", void $ C.char 'l']
+    choice [void $ symbol "load", void $ char 'l']
     filenames <- many pFileName
     return $ LoadFile filenames
 
@@ -278,7 +279,7 @@ pCommand = do
     void $ C.char ':'
     choice
         [ pSimpleCommand 'h' "help" PrintHelp
-        , pSimpleCommand 'q' "quit" Quit
+--        , pSimpleCommand 'q' "quit" Quit
         , pRunTimedCommand
         , pGetTypeCommand
         , pGetInfoCommand
@@ -292,5 +293,5 @@ type ParserErrorT = Either (ParseErrorBundle Text Void)
 
 type ParserOutput = ParserErrorT (Option TTm Command TopDef)
 
-parseString :: Text -> ParserOutput
-parseString = parse pSrc "(stdin)"
+parseString :: String -> Text -> ParserOutput
+parseString file = parse pSrc ("("++file++")")

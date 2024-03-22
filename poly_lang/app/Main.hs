@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase  #-}
 import System.Environment
 import System.IO
+import System.Directory
 import Control.Monad (unless)
 import Control.Monad.State.Lazy  --StateT
 import Data.Functor.Identity
@@ -12,7 +13,7 @@ import Core
 import Ring
 import Lib
 import Parser
-import qualified Data.Text as T
+import qualified Data.Text as T hiding (length)
 
 main :: IO ()
 main = do
@@ -21,23 +22,27 @@ main = do
     runRepl
 
 parseArgs :: [String] -> IO ()
-parseArgs ("load":files)   = loadFiles files
+--parseArgs ("load":files)   = loadFiles files
 parseArgs ("help":_)       = putStrLn help
 parseArgs ("docs":topic:_) = putStrLn $ helpOnTopic undefined -- here : topic -(parsing with pInfoTopic)-> ?
 parseArgs _                = putStrLn "No such command\n" >> putStrLn help
 
-loadFiles :: [String] -> IO ()
-loadFiles []     = putStrLn ""
-loadFiles (x:xs) = do
-    con <- readFile x
-    putStrLn con
-    loadFiles xs
-
-{- something something fmap
-loadFile xs = do 
-    content <- map readFile xs
-    print "asd"
--}
+-- List of filenames, we open each one and we parse the contents
+loadFiles :: [String] -> StateT SEnv IO [String]
+loadFiles [] = return ["No files loaded"]
+loadFiles filenames = do
+    forM filenames processFile
+    where
+        processFile :: String -> StateT SEnv IO String
+        processFile filename = do
+            b <- lift $ doesFileExist filename
+            if b
+                then do
+                    con <- lift $ readFile filename
+                    s <- mapM eval (lines con)
+                    return $ ("Loading file : " ++ filename ++ "\n" ++ head s)
+                else do
+                    return $ "There is no such file : " ++ filename
 
 help :: String
 help = "Usage : poly_lang.exe <command>   \n\
@@ -46,9 +51,10 @@ help = "Usage : poly_lang.exe <command>   \n\
                       \ \t\tdocs <topic> - Prints help on the specified topic, use `docs topis` to print out the available topics"
 
 helpOnTopic :: Topic -> String
-helpOnTopic MetaTopic = "Current topics: \n\t\tDummy\n\t\ttopic"
-helpOnTopic Dummy     = "This is the docs of Dummy. Its me i am the dummy :D"
-helpOnTopic _         = "No such topic, run `docs topic` to see avaliable topics\n"
+helpOnTopic = \case
+    MetaTopic -> "Current topics: \n\t\tDummy\n\t\ttopic"
+    Dummy     -> "This is the docs of Dummy. Its me i am the dummy :D"
+    _         -> "No such topic, run `docs topic` to see avaliable topics\n"
 
 read_ :: IO String
 read_ = do
@@ -56,64 +62,48 @@ read_ = do
     hFlush stdout
     getLine
 
--- TODO : :: String -> State GEnv String
--- GEnv :: [(Name, (Type, Tm))]
--- GEnv be a VarDef és LetDef topdef ek pakolnak 
---      és a runTypedTerm használja 
--- kell : executeCommand, executeTopDef, 
---        utóbbi akár inline is lehet
-eval :: String -> State SEnv String
-eval cs = case parseString $ T.pack cs of
+-- SEnv should have a Error part where we can signal is the parsing wasnt okay
+eval :: String -> StateT SEnv IO String
+eval cs = case parseString "poly" $ T.pack cs of
     Left a   -> return $ errorBundlePretty a        -- TODO : print errors
     Right tm_co -> case tm_co of
         OLeft tm -> do
             env <- get
             mapStateT (handleMaybeTm env) (runTypedTerm tm)
-        OMiddle co -> return $ handleCommand co
+        OMiddle co -> handleCommand co
         ORight def -> do
             env <- get
-            --mapStateT (maybe (Identity ("Type error", env)) (Identity . id)) (handleTopDef def)
             mapStateT (handleMaybeString env) (handleTopDef def)
 
--- maybe :: b -> (a -> b) -> Maybe a -> b
--- a = (String,SEnv)
--- b = (String,SEnv)
--- maybe :: (String,SEnv) -> ((String,SEnv) -> (String,SEnv)) -> Maybe (String,SEnv) -> (String,SEnv)
--- maybe ("Type error", env) (id) (handleTopDef def) 
-handleMaybeString :: SEnv -> Maybe (String, SEnv) -> Identity (String, SEnv)
-handleMaybeString env = maybe (Identity ("Type error", env)) (Identity . id)
+handleMaybeString :: SEnv -> Maybe (String, SEnv) -> IO (String, SEnv)
+handleMaybeString env = maybe (return ("Type error", env)) (return . id)
 
-handleMaybeTm :: SEnv -> Maybe (Tm , SEnv) -> Identity (String, SEnv)
+handleMaybeTm :: SEnv -> Maybe (Tm , SEnv) -> IO (String, SEnv)
 handleMaybeTm env m = case m of
     Just (tm',env') -> return (show tm',env')
     Nothing         -> return ("Type error",env)
 
 handleTopDef :: TopDef -> StateT SEnv Maybe String
 handleTopDef def = case def of
-    -- We typecheck and eval ttm and then store it in Env
     LetDef name ttm -> do
         t <- (typeCheck [] ttm)
         val <- (state . runState) $ evalTerm (loseType ttm)
         modify $ insertType (name, t)
         modify $ insertName (name, val)
         return ("saved " ++ T.unpack name)
-    -- We save the fact that name has type Poly 
-    -- and save it as polyvar 
     VarDef name    -> do
-        modify $ insertType (name, TTop) -- TODO : No TTop
-        modify $ insertName (name, VLit $ LTop)
+        modify $ insertType (name, TPoly) -- TODO : No TTop
+        modify $ insertName (name, VPolyVar name)
         return ""
-    where
 
-
-handleCommand :: Command -> String
+-- This type is not strong enough, cos here we have to do a lot of things like IO, ...
+handleCommand :: Command -> StateT SEnv IO String
 handleCommand co = case co of
-    PrintHelp   -> undefined     
-    RunTimed tm -> undefined  
-    Quit        -> undefined   
-    LoadFile ns -> undefined
-    GetType  tm -> undefined  
-    GetInfo  tp -> helpOnTopic tp
+    PrintHelp   -> return help
+    RunTimed tm -> undefined -- run tm and print out measure the time it took
+    LoadFile ns -> unlines <$> loadFiles (map T.unpack ns) -- load files then 
+    GetType  tm -> undefined -- we have to typecheck tm then print out the type 
+    GetInfo  tp -> return $ helpOnTopic tp
 
 print_ :: String -> IO ()
 print_ = putStrLn
@@ -125,6 +115,6 @@ runStatefulRepl :: StateT SEnv IO ()
 runStatefulRepl = do
     inp <- lift read_                           -- Lift IO into StateT IO
     unless (inp == ":q") $ do
-        tm <- (state . runState) $ eval inp     -- Unbox and box (StateT Id -> StateT IO)
+        tm <- eval inp                          -- Eval could print everything so we dont need to worry about passing things to print_
         lift $ print_ tm                        -- Lift IO into StateT IO
         runStatefulRepl
