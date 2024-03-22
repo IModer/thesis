@@ -1,0 +1,4 @@
+var X
+var Y
+var Z
+def three := 3
