@@ -157,15 +157,14 @@ testRational =
 --    (^)
 
 testComplex :: [N -> N -> N]
-testComplex = 
+testComplex =
     [ (/+/)
     , (/-/)
     , (/*/)
     , (///)
--- í   , div
-    , modCR
+    , modCR ]
+--   , div
 --        (.^)
-        ]
 
 --- Polinomials
 
