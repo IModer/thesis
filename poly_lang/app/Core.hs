@@ -131,8 +131,8 @@ typeCheck env = \case
         maybe (lift $ lookup x env) return (lookup x (typeEnv env')) --this is same as : t <- ... ; return t
     TLet x e u     -> do
         t <- typeCheck env e
-        modify $ insertType (x,t)
-        typeCheck env u
+--        modify $ insertType (x,t)
+        typeCheck ((x,t):env) u
     TLam x t e     -> do 
         t' <- typeCheck ((x,t):env) e
         return $ TArr t t'
