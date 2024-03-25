@@ -3,4 +3,5 @@ var X
 3 + 3
 def three := 3
 let x := 2 in x
+
 (\x : Num . (\f : Num -> Num . f x))

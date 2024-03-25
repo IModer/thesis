@@ -9,7 +9,9 @@ import Data.Functor.Identity
 import Text.Megaparsec.Error
 -- Saját imports
 
-import Core
+import Core.TypeChecker
+import Core.Interpreter
+import Core.AST
 import Ring
 import Lib
 import Parser
@@ -75,10 +77,10 @@ evalFile filename cs = case parseStringFile filename $ T.pack cs of
             Left tm   -> do
                 env <- get
                 lift $ putStrLn $ "running Tm : " ++ show tm
-                mapStateT (handleMaybeTm env) (runTypedTerm tm)
+                mapStateT (handleErrorTm env) (runTypedTerm tm)
             Right def -> do
                 env <- get
-                mapStateT (handleMaybeString env) (handleTopDef def)
+                mapStateT (handleErrorString env) (handleTopDef def)
 
 evalRepl :: String -> StateT SEnv IO String
 evalRepl cs = case parseStringRepl $ T.pack cs of
@@ -86,21 +88,28 @@ evalRepl cs = case parseStringRepl $ T.pack cs of
     Right tm_co_def -> case tm_co_def of
         OLeft tm -> do
             env <- get
-            mapStateT (handleMaybeTm env) (runTypedTerm tm)
+            mapStateT (handleErrorTm env) (runTypedTerm tm)
         OMiddle co -> handleCommand co
         ORight def -> do
             env <- get
-            mapStateT (handleMaybeString env) (handleTopDef def)
+            mapStateT (handleErrorString env) (handleTopDef def)
 
-handleMaybeString :: SEnv -> Maybe (String, SEnv) -> IO (String, SEnv)
-handleMaybeString env = maybe (return ("Type error S", env)) return
+handleErrorString :: SEnv -> Error (String, SEnv) -> IO (String, SEnv)
+handleErrorString env = either 
+                            (\e -> return (e, env)) 
+                            (return)
 
-handleMaybeTm :: SEnv -> Maybe (Tm , SEnv) -> IO (String, SEnv)
-handleMaybeTm env m = case m of
+handleErrorTm :: SEnv -> Error (Tm , SEnv) -> IO (String, SEnv)
+handleErrorTm env = either
+                            (\e  -> return (e, env))
+                            (\(tm,env') -> return (show tm, env'))
+{-
+    case m of
     Just (tm',env') -> return (show tm',env')
     Nothing         -> return ("Type error",env)
+-}
 
-handleTopDef :: TopDef -> StateT SEnv Maybe String
+handleTopDef :: TopDef -> StateT SEnv Error String
 handleTopDef def = case def of
     LetDef name ttm -> do
         t <- typeCheck [] ttm

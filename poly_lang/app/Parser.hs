@@ -2,7 +2,7 @@
 
 module Parser where
 
-import Core hiding (Prefix)
+import Core.AST hiding (Prefix)
 import Lib
 
 import Control.Applicative hiding (many, some)
@@ -13,7 +13,7 @@ import Data.Functor
 import Text.Megaparsec
 import Text.Megaparsec.Debug (dbg)
 import Control.Monad.Combinators.Expr
-import Data.Text hiding (elem, empty)
+import Data.Text hiding (elem, empty, filter, map)
 
 import qualified Text.Megaparsec.Char       as C
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -53,7 +53,7 @@ data Type
 
 type Parser = Parsec Void Text
 
--- hspace does noe accept newlines
+-- hspace does not accept newlines
 ws :: Parser ()
 ws = L.space C.hspace1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
 
@@ -118,8 +118,8 @@ operatorTable =
     [
       binaryL "*"   (TBinOpNum Times (*))
     , binaryL "/"   (TBinOp Div)
-    , binaryL "div" (TBinOpNum IntDiv div)
-    , binaryL "mod" (TBinOpNum Mod    mod)
+    , binaryL "div" (TBinOpNum IntDiv quot)
+    , binaryL "mod" (TBinOpNum Mod    rem)
     , binaryL "="   (TBinOp Eq)
     ] ,
     [ 
@@ -145,7 +145,7 @@ prefix, postfix :: Text -> (a -> a) -> Operator Parser a
 prefix  n f = Prefix  (f <$ symbol n)
 postfix n f = Postfix (f <$ symbol n)
 
--- A Expr is a tree with nodes (+), (*), ... and leafes pLit, or pVariable
+-- A Expr is a tree with nodes (+), (*), ... and leafs pLit, or pVariable
 pExprT :: Parser TTm
 pExprT = try $ choice 
     [ 
@@ -205,10 +205,9 @@ pTm  = try (choice
 data Command
     = PrintHelp         -- :h              | : help
     | RunTimed TTm      -- :b <tm>         | :timeit <tm>  -- Bentchmark
---    | Quit              -- :q              | :quit
     | LoadFile [Name]   -- :l <f> <f2> ... | :load <f> <f2> ...
     | GetType  TTm      -- :t <tm>         | :type <tm>
-    | GetInfo  Topic     -- :i <topic>      | :info <topic>
+    | GetInfo  Topic    -- :i <topic>      | :info <topic>
     deriving Show
 
 data TopDef
@@ -239,9 +238,16 @@ pSimpleCommand c s co = do
     choice [void $ C.string s, void $ C.char c]
     return co
 
--- TODO : This cannot parse multiple filenames
 pFileName :: Parser Text
-pFileName = takeWhile1P (Just "a file name") (not . isSpace)
+pFileName = do
+    x <- takeWhile1P (Just "a file name") (isFileNameChar)
+    x <$ ws
+
+isFileNameChar :: Char -> Bool
+isFileNameChar c = isAlphaNum c || c `elem` chars
+    where
+        chars :: String
+        chars = "\\.:"
 
 data Topic
     = MetaTopic
@@ -280,7 +286,6 @@ pCommand = do
     void $ C.char ':'
     choice
         [ pSimpleCommand 'h' "help" PrintHelp
---        , pSimpleCommand 'q' "quit" Quit
         , pRunTimedCommand
         , pGetTypeCommand
         , pGetInfoCommand
@@ -291,17 +296,16 @@ pReplLine :: Parser (Option TTm Command TopDef)
 pReplLine = ws *> eitherOptionP pTm pCommand pTopDef <* eof
 
 -- TODO : A newline is always needed for end of file
-pFileLine :: Parser (Either TTm TopDef)
+pFileLine :: Parser (Option TTm TopDef Char)
 pFileLine = do
-    tm_def <- eitherP pTm pTopDef
-    C.newline
+    tm_def <- eitherOptionP pTm pTopDef (C.newline)
     return tm_def
 
 pFile :: Parser [Either TTm TopDef]
 pFile = do
     tms_defs <- many pFileLine
     void eof
-    return tms_defs
+    return $ filterToEither tms_defs
 
 type ParserErrorT = Either (ParseErrorBundle Text Void)
 

@@ -63,7 +63,7 @@ executable poly-lang
 
     -- Modules included in this executable, other than Main.
     -- other-modules:
-    other-modules:    Core, Ring, Parser, Lib
+    other-modules:    Core.AST, Core.Interpreter, Ring, Parser, Lib
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -76,7 +76,7 @@ executable poly-lang
                         text,
                         poly,
                         vector,
-                        semirings,
+                        semirings >= 0.6,
                         directory
     -- transformers
 

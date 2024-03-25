@@ -2,34 +2,24 @@
 
 module Ring where
 
-import Prelude hiding (mod, div, negate)
+import Prelude hiding (negate)
 import Data.Ratio
 import Data.Poly.Multi.Semiring 
+import Data.Euclidean
 import Data.Semiring hiding ((+), (-), (*), (^), fromInteger)
 import GHC.TypeNats
-
---TODO: move this to some lib
-zipWithPad :: (a -> b -> c) -> a -> b -> [a] -> [b] -> [c]
-zipWithPad f da db xs []         = zipWith f xs (repeat db)
-zipWithPad f da db [] ys         = zipWith f (repeat da) ys 
-zipWithPad f da db (x:xs) (y:ys) = f x y : zipWithPad f da db xs ys
 
 -- Saját Complex típus
 
 data Complex a = !a :+ !a
-    deriving (Eq, Show)
+    deriving (Eq)
 
 infix 7 :+
 
---instance (Show a) => Show (Complex a) where
---    show (a :+ b) = show a ++ "+" ++ show b ++ "i"
-{-
-instance Show (Complex Rational) where
-    show (a :+ b) = showa  ++ "+" ++ showb ++ "i"
-        where
-            showa = "(" ++ show (numerator a) ++ "/" ++ show (denominator a) ++ ")"
-            showb = "(" ++ show (numerator b) ++ "/" ++ show (denominator b) ++ ")"
--}
+instance (Show a, Num a, Eq a) => Show (Complex a) where
+    show (a :+ b) = if (b == 0) then show a 
+                                else show a ++ "+" ++ show b ++ "i"
+
 
 conjugate :: (Num a) => Complex a -> Complex a
 conjugate (a :+ b) = a :+ (- b)
@@ -72,6 +62,8 @@ instance Ring a => Semiring (Complex a) where
   times (x :+ y) (x' :+ y')
     = (x `times` x' `plus` (negate (y `times` y'))) :+ (x `times` y' `plus` y `times` x')
   fromNatural n = fromNatural n :+ zero
+
+
 {-
 instance Ring Rational where
     negate = (0-)
@@ -103,19 +95,33 @@ modCR z@(a :+ b) w@(c :+ d) = z - w * floorc (z / w)
     where
         floorc (x :+ y) = (round x % 1) :+ (round y % 1)
 
-div :: (Integral a,  RealFrac a) => Complex a -> Complex a -> Complex a
-div z@(a :+ b) w@(c :+ d) = undefined
+-- Integer division is always integer division
+divC :: (Integral a) => Complex a -> Complex a -> Complex a
+divC z@(a :+ b) w@(c :+ d) = (a `div` c) :+ 0
+
+--- Rational
+
+-- Num Rational
+
+-- Fractional Rational
+
+-- Integral Rational
+
+instance Integral Rational where
+    toInteger a = floor a
+    quotRem a b = (quotR a b, remR a b)
+
 -- Fractional mod a la https://functions.wolfram.com/IntegerFunctions/Mod/27/01/01/
 -- We the take the whole park mod that then add the fractional part 
-modR :: Rational -> Rational -> Rational
-modR m n = m - n * (floor (m / n) % 1)
+remR :: Rational -> Rational -> Rational
+remR m n = m - n * (floor (m / n) % 1)
 
-divR :: Rational -> Rational -> Rational
-divR a b = undefined
+quotR :: Rational -> Rational -> Rational
+quotR a b = (floor a `div` floor b) % 1
 
 -- Also need Ord and Eq for all numbers, polinomials
 --                                  Real
-type Number = Integer
+type Number = Rational
 type N = Complex Rational
 
 aC :: Complex Integer
@@ -152,8 +158,8 @@ testRational =
     , (-)
     , (*)
     , (/)
-    , modR
-    , divR ]
+    , remR
+    , quotR ]
 --    (^)
 
 testComplex :: [N -> N -> N]
@@ -177,10 +183,10 @@ testComplex =
 --p1 :: VMultiPoly 3 (Complex Rational)
 --p1 = 2 * X + 3
 
-p2 :: MPoly 1
+p2 :: CPoly 1
 p2 = 1 + X
 
-type MPoly (n :: Nat) = VMultiPoly n (Complex Rational)
+type CPoly (n :: Nat) = VMultiPoly n (Complex Rational)
 
 factor :: Number -> Number
 factor a = undefined
@@ -191,11 +197,25 @@ irred a = undefined
 derivative :: Number -> Number
 derivative a = undefined
 
-{-
--}
-testPoly :: [MPoly 1 -> MPoly 1 -> MPoly 1]
-testPoly = 
+-- Num CPoly
+binopPoly :: (KnownNat n) => [CPoly n -> CPoly n -> CPoly n]
+binopPoly = 
     [ (+)
     , (-)
     , (*)
     ]
+
+unaryPoly :: (KnownNat n) => [CPoly n -> CPoly n]
+unaryPoly =
+    [ abs
+    , signum
+    ]
+
+-- Euclidian CPoly
+{-
+eucPoly :: [CPoly 1 -> CPoly 1 -> CPoly 1]
+eucPoly = 
+    [ Data.Euclidean.quot
+    , Data.Euclidean.rem
+    ]
+-}
