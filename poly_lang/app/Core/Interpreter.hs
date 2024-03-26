@@ -1,8 +1,7 @@
 {-# OPTIONS_GHC -Wincomplete-patterns #-}
-{-# LANGUAGE LambdaCase, ViewPatterns, OverloadedStrings, PatternSynonyms #-}
+{-# LANGUAGE LambdaCase, ViewPatterns #-}
 module Core.Interpreter where
 
-import Lib
 import Core.AST
 import Core.TypeChecker
 import Core.Classes
@@ -13,8 +12,7 @@ import Control.Monad.State.Class --MonadClass
 import Control.Monad.State.Lazy  --StateT
 import Data.Functor.Identity
 import Data.Text hiding (map, elem)
-import Ring hiding (mod, div)
-
+import Ring
 
 runTypedTerm :: TTm -> ErrorT GState Tm
 runTypedTerm tm = do
@@ -87,7 +85,6 @@ evalTerm env' = \case
         return $ case (op , e', u') of
             (Eq     , VBool i   , VBool j  ) -> VBool   $ i == j
             (Eq     , VNumber i , VNumber j) -> VBool   $ i == j
-            (Div    , VNumber i , VNumber j) -> VNumber $ i `div` j
             (Lte    , VNumber i , VNumber j) -> VBool   $ i <= j
             (Gte    , VNumber i , VNumber j) -> VBool   $ i >= j
             (Lt     , VNumber i , VNumber j) -> VBool   $ i < j

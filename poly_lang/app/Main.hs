@@ -2,6 +2,7 @@
 import System.Environment
 import System.IO
 import System.Directory
+import System.Clock
 import Control.Monad (unless)
 import Control.Monad.State.Lazy  --StateT
 import Control.Monad.Except      -- ExceptT
@@ -25,7 +26,7 @@ main = do
     env <- handleArgs args
     runRepl env
 
-handleArgs ::  [String] -> IO (GEnv)
+handleArgs ::  [String] -> IO GEnv
 handleArgs xs = case pCommandLineCommand xs of
     PrintHelpCL      -> do
         putStrLn help
@@ -40,7 +41,7 @@ handleArgs xs = case pCommandLineCommand xs of
     -- Ezt lehet ki lehetne absztrahálni
     LoadFileCL files -> do
         (logs, env) <- runStateT (loadFiles files) (GEnv [] [])
-        forM logs putStrLn
+        forM_ logs putStrLn
         return env
 
 -- List of filenames, we open each one and we parse the contents
@@ -89,48 +90,33 @@ evalFile filename cs = case parseStringFile filename $ pack cs of
         handleTmDef tm_def = case tm_def of
             Left tm   -> do
                 lift $ putStrLn $ "running Tm : " ++ show tm
-                handleErrorTm' (runTypedTerm tm)
+                handleErrorShow (runTypedTerm tm)
             Right def -> do
-                handleErrorString' (handleTopDef def)
+                handleErrorString (handleTopDef def)
 
 evalRepl :: String -> GStateT IO String
 evalRepl cs = case parseStringRepl $ pack cs of
     Left a   -> return $ errorBundlePretty a
     Right tm_co_def -> case tm_co_def of
         OLeft tm -> do
-            handleErrorTm' (runTypedTerm tm)
+            handleErrorShow (runTypedTerm tm)
         OMiddle co -> handleCommand co
         ORight def -> do
-            handleErrorString' (handleTopDef def)
+            handleErrorString (handleTopDef def)
 
-handleErrorTm' :: ErrorT GState Tm -> GStateT IO String
-handleErrorTm' e = 
+handleErrorShow :: Show a => ErrorT GState a -> GStateT IO String
+handleErrorShow e = 
     let a = runExceptT e in 
     mapStateT (\i -> 
         let (e_tm, env) = runIdentity i in 
         return (eitherIdL show e_tm,env)) a
 
-handleErrorString' :: ErrorT GState String -> GStateT IO String
-handleErrorString' e = 
+handleErrorString :: ErrorT GState String -> GStateT IO String
+handleErrorString e = 
     let a = runExceptT e in
     mapStateT (\i -> 
         let (e_s, env) = runIdentity i in 
         return (eitherId e_s, env)) a
-
-handleErrorString :: GEnv -> Error (String, GEnv) -> IO (String, GEnv)
-handleErrorString env = either 
-                            (\e -> return (e, env)) 
-                            (return)
-
-handleErrorTm :: GEnv -> Error (Tm , GEnv) -> IO (String, GEnv)
-handleErrorTm env = either
-                            (\e  -> return (e, env))
-                            (\(tm,env') -> return (show tm, env'))
-{-
-    case m of
-    Just (tm',env') -> return (show tm',env')
-    Nothing         -> return ("Type error",env)
--}
 
 handleTopDef :: TopDef -> ErrorT GState String
 handleTopDef def = case def of
@@ -145,13 +131,16 @@ handleTopDef def = case def of
         modify $ insertVal (name, VPolyVar name)
         return $ unpack name ++ " is now a polinomial variable"
 
--- This type is not strong enough, cos here we have to do a lot of things like IO, ...
 handleCommand :: Command -> GStateT IO String
 handleCommand co = case co of
     PrintHelp   -> return help
-    RunTimed tm -> undefined -- run tm and print out measure the time it took
+    RunTimed tm -> do  -- run tm and print out measure the time it took
+        t1 <- lift $ getTime Monotonic
+        handleErrorShow (runTypedTerm tm)
+        t2 <- lift $ getTime Monotonic
+        return $ "running it took: " ++ show (toNanoSecs $ diffTimeSpec t1 t2) ++ " ns"
     LoadFile ns -> unlines <$> loadFiles (map unpack ns) -- load files then 
-    GetType  tm -> undefined -- we have to typecheck tm then print out the type 
+    GetType  tm -> handleErrorShow (typeCheck [] tm)  -- we have to typecheck tm then print out the type
     GetInfo  tp -> return $ helpOnTopic tp
 
 print_ :: String -> IO ()
@@ -164,8 +153,11 @@ runStatefulRepl :: GStateT IO ()
 runStatefulRepl = do
     inp <- lift read_                           -- Lift IO into StateT IO
     unless (trimS inp == ":q") $ do
-        tm <- evalRepl inp                      -- Eval could print everything so we dont need to worry about passing things to print_
-        lift $ print_ tm                        -- Lift IO into StateT IO
-        runStatefulRepl
+        if trimS inp /= "" then do
+            tm <- evalRepl inp                      -- Eval could print everything so we dont need to worry about passing things to print_
+            lift $ print_ tm                        -- Lift IO into StateT IO
+            runStatefulRepl
+        else do
+            runStatefulRepl
     where
         trimS = unpack . strip . pack

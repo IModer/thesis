@@ -117,10 +117,10 @@ operatorTable =
     ] ,
     [
       binaryL "*"   (TBinOpNum Times (*))
-    , binaryL "/"   (TBinOp Div)
+    , binaryL "/"   (TBinOpNum Div   (/))
     , binaryL "div" (TBinOpNum IntDiv quot)
     , binaryL "mod" (TBinOpNum Mod    rem)
-    , binaryL "="   (TBinOp Eq)
+    , binaryL "=="   (TBinOp Eq)
     ] ,
     [ 
       binaryL "+"   (TBinOpNum Plus  (+))
@@ -150,8 +150,10 @@ pExprT :: Parser TTm
 pExprT = try $ choice 
     [ 
       {-dbg "parens expr" -} parens pExpr <?> "parens expr"
-    , {-dbg "literal"     -} pLit           <?> "literal"
-    , {-dbg "variable"    -} pVariable      <?> "variable"
+    , {-dbg "literal"     -} pLit         <?> "literal"
+    , {-dbg "variable"    -} pVariable    <?> "variable"
+    , {-dbg "function"    -} pLam         <?> "function"
+    , {-dbg "let expr"    -} pLet         <?> "let expr"
     ]
 
 pExpr :: Parser TTm
@@ -212,12 +214,11 @@ pCommandLineCommand :: [String] -> CommandLineCommand
 pCommandLineCommand ("load":files)   = LoadFileCL files
 pCommandLineCommand ("help":_)       = PrintHelpCL
 pCommandLineCommand ("docs":topic:_) = 
-    let (e_t) = parse pInfoTopic "(cmd)" $ pack topic in
+    let e_t = parse pInfoTopic "(cmd)" $ pack topic in
         case e_t of
             Left _ -> NoSuchCommandCl
             Right tpc -> GetInfoCL tpc
 pCommandLineCommand _                = NoSuchCommandCl
-
 
 data Command
     = PrintHelp         -- :h              | : help
@@ -282,19 +283,19 @@ pLoadFileCommand = do
 
 pGetInfoCommand :: Parser Command
 pGetInfoCommand = do
-    choice [void $ C.string "info", void $ C.char 'i']
+    choice [void $ symbol "info", void $ char 'i']
     infotopic <- pInfoTopic
     return $ GetInfo infotopic
 
 pGetTypeCommand :: Parser Command
 pGetTypeCommand = do
-    choice [void $ C.string "type", void $ C.char 't']
+    choice [void $ symbol "type", void $ char 't']
     tm <- pTm
     return $ GetType tm
 
 pRunTimedCommand :: Parser Command
 pRunTimedCommand = do
-    choice [void $ C.string "timeit", void $ C.char 'b']
+    choice [void $ symbol "timeit", void $ char 'b']
     tm <- pTm
     return $ RunTimed tm
 
@@ -312,10 +313,13 @@ pCommand = do
 pReplLine :: Parser (Option TTm Command TopDef)
 pReplLine = ws *> eitherOptionP pTm pCommand pTopDef <* eof
 
+pNewLine :: Parser ()
+pNewLine = void $ ws *> C.newline
+
 -- TODO : A newline is always needed for end of file
-pFileLine :: Parser (Option TTm TopDef Char)
+pFileLine :: Parser (Option TTm TopDef ())
 pFileLine = do
-    tm_def <- eitherOptionP pTm pTopDef (C.newline)
+    tm_def <- eitherOptionP pTm pTopDef pNewLine
     return tm_def
 
 pFile :: Parser [Either TTm TopDef]
