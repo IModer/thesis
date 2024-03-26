@@ -5,9 +5,10 @@ module Core.TypeChecker where
 import Control.Monad.State (StateT, lift, get)
 import Core.AST
 import Lib
+import Core.Classes
 import qualified Data.Text as T
 
-typeCheck :: TEnv -> TTm -> StateT SEnv Error Type
+typeCheck :: TEnv -> TTm -> StateT GEnv Error Type
 typeCheck env = \case
     TLit (LNumber  _) -> return TNumber
     TLit (LBool _) -> return TBool
@@ -18,7 +19,7 @@ typeCheck env = \case
                 (return) 
                 (lookup x env))
             (return)
-            (lookup x (typeEnv env'))
+            (lookup x (getType env'))
     TLet x e u     -> do
         t <- typeCheck env e
         typeCheck ((x,t):env) u
@@ -47,7 +48,7 @@ typeCheck env = \case
             (Irred  , TNumber) -> return TBool
             (_      , _      ) -> lift $ Error ("TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show e')
 
-bothTypesEqual :: BinOp -> TEnv -> TTm -> TTm -> Type -> StateT SEnv Error Type
+bothTypesEqual :: BinOp -> TEnv -> TTm -> TTm -> Type -> StateT GEnv Error Type
 bothTypesEqual op env e1 e2 t  = do
     t1 <- typeCheck env e1
     t2 <- typeCheck env e2

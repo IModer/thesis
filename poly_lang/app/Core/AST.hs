@@ -3,24 +3,12 @@
 module Core.AST where
 
 import Ring
-import qualified Data.Text as T
+import Data.Text hiding (unwords)
 
 type BoolOpType = Bool -> Bool -> Bool
 type NumOpType = Number -> Number -> Number
 
-type Name = T.Text
-
-type TEnv = [(Name, Type)]
-type Env  = [(Name, Val)]
-
-insertType :: (Name, Type) -> SEnv -> SEnv
-insertType xt (SEnv tenv env) = SEnv (xt : tenv) env
-
-insertName :: (Name, Val) -> SEnv -> SEnv
-insertName nv (SEnv tenv env) = SEnv tenv (nv : env)
-
-data SEnv = SEnv {typeEnv :: TEnv , 
-                  nameEnv :: Env}
+type Name = Text
 
 data TTm
     = TVar    Name
@@ -126,10 +114,10 @@ data Tm
 
 showTm :: Tm -> String
 showTm = \case
-    Var n              -> T.unpack n
+    Var n              -> unpack n
     App t u            -> unwords ["(",showTm t,showTm u,")"]
-    Lam n t            -> unwords ["(\\",T.unpack n,"->",showTm t,")"]
-    Let n t u          -> unwords ["(let",T.unpack n,"=",showTm t,showTm u,")"]
+    Lam n t            -> unwords ["(\\",unpack n,"->",showTm t,")"]
+    Let n t u          -> unwords ["(let",unpack n,"=",showTm t,showTm u,")"]
     Lit (LBool l)      -> show l
     Lit (LNumber l)    -> show l
     Lit LTop           -> "tt"

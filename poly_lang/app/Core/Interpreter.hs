@@ -5,53 +5,74 @@ module Core.Interpreter where
 import Lib
 import Core.AST
 import Core.TypeChecker
+import Core.Classes
 
 import Data.Maybe
 import Control.Monad.Trans       --lift
 import Control.Monad.State.Class --MonadClass
 import Control.Monad.State.Lazy  --StateT
 import Data.Functor.Identity
-import qualified Data.Text as T
+import Data.Text hiding (map, elem)
 import Ring hiding (mod, div)
 
-runTypedTerm :: TTm -> StateT SEnv Error Tm
+
+-- TEST
+
+test :: TTm -> ErrorT (State GEnv) Tm
+test ttm = do
+    _ <- testtypeCheck [] ttm
+    lift $ normalForm (loseType ttm)
+
+testtypeCheck :: TEnv -> TTm -> ErrorT (State GEnv) Type
+testtypeCheck = undefined
+
+
+runTypedTerm :: TTm -> StateT GEnv Error Tm
 runTypedTerm tm = do
-    _ <- typeCheck [] tm
+    --_ <- typeCheck [] tm
     (state . runState) $ normalForm (loseType tm) -- Unbox and box (StateT Id -> StateT Maybe)
 
 --- Evaluation ---
 
 freshName :: [Name] -> Name -> Name
 freshName ns x = if x `elem` ns
-                    then freshName ns $ T.snoc x '\'' 
+                    then freshName ns $ snoc x '\'' 
                     else x
 
 vLamApp :: Val -> Val -> Val
 vLamApp (VLam _ t) u = t u
 vLamApp t          u = VApp t u
 
-evalTerm :: Tm -> State SEnv Val
-evalTerm = \case
+evalTerm :: VEnv -> Tm -> State GEnv Val
+evalTerm env' = \case
     Var n     -> do
         env <- get
-        return $ fromJust $ lookup n $ nameEnv env -- NOTE: fromJust is safe
+        maybe   (return $ fromJust $ lookup n $ getVal env) 
+                return
+                (lookup n env')
+        --return $ fromJust $ lookup n $ nameEnv env -- NOTE: fromJust is safe
     App t u   -> do
 --        env <- get
-        t' <- evalTerm t
-        u' <- evalTerm u 
+        t' <- evalTerm env' t
+        u' <- evalTerm env' u 
         return $ vLamApp t' u'
     Lam n t   -> do
         env <- get
+        return $ VLam n (\u -> evalState (evalTerm ((n, u):env') t) env )
+        {-
         return $ VLam n (\u -> evalState (do
             modify (insertName (n, u))
             evalTerm t) env)
+        -}
     Let n e u -> do
-        e' <- evalTerm e
+        e' <- evalTerm env' e
+        {-
         modify $ insertName (n , e')
-        evalTerm u
+        -}
+        evalTerm ((n, e'):env') u
     Lit l     -> return $ VLit l
     Prefix op e -> do
-        e' <- evalTerm e
+        e' <- evalTerm env' e
         return $ case (op , e') of
             (Neg    , VNumber i) -> VNumber (- i)
             (Factor , VNumber i) -> VNumber (factor i)
@@ -59,21 +80,21 @@ evalTerm = \case
             (Der    , VNumber i) -> VNumber (derivative i)
             (_      , a        ) -> VPrefix op a
     BinOpBool op f e u -> do
-        e' <- evalTerm e
-        u' <- evalTerm u
+        e' <- evalTerm env' e
+        u' <- evalTerm env' u
         return $ case (e', u') of
             (VBool i, VBool j) -> VBool $ i `f` j
             (a      , b      ) -> VBinOpBool op f a b
     BinOpNum op f e u -> do
-        e' <- evalTerm e
-        u' <- evalTerm u
+        e' <- evalTerm env' e
+        u' <- evalTerm env' u
         return $ case (e', u') of
             (VNumber i, VNumber j) -> VNumber $ i `f` j
             (a      , b      )     -> VBinOpNum op f a b
     -- Here we want to comtrol what output type we have and so on...
     BinOp op e u -> do
-        e' <- evalTerm e
-        u' <- evalTerm u
+        e' <- evalTerm env' e
+        u' <- evalTerm env' u
         return $ case (op , e', u') of
             (Eq     , VBool i   , VBool j  ) -> VBool   $ i == j
             (Eq     , VNumber i , VNumber j) -> VBool   $ i == j
@@ -96,8 +117,8 @@ quoteTerm ns = \case
     VBinOpNum op f l r          -> BinOpNum op f (quoteTerm ns l) (quoteTerm ns r)
     VPolyVar n                  -> Var n
 
-normalForm :: Tm -> State SEnv Tm
+normalForm :: Tm -> State GEnv Tm
 normalForm tm = do
-    val <- evalTerm tm
+    val <- evalTerm [] tm
     env <- get
-    lift $ Identity $ quoteTerm (map fst $ nameEnv env) val
+    lift $ Identity $ quoteTerm (map fst $ getVal env) val
