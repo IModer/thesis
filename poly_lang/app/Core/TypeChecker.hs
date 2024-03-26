@@ -37,11 +37,14 @@ typeCheck env = \case
                                 then return t'
                                 else throwErrorLift ("TypeError :\nCould not match type : " ++ show t ++ "\n\t\twith : " ++ show t2)
             _                     -> throwErrorLift ("TypeError :\nCannot apply type : " ++ show t2 ++ "\n\t       to : " ++ show t1)
-    TBinOpBool op _ e1 e2 -> bothTypesEqual op env e1 e2 TBool
-    TBinOpNum  op _ e1 e2 -> bothTypesEqual op env e1 e2 TNumber
-    TBinOp op e1 e2 -> if op `elem` [And, Or]
-        then bothTypesEqual op env e1 e2 TBool
-        else bothTypesEqual op env e1 e2 TNumber
+    TBinOpBool op _ e1 e2 -> bothConformTo TBool   (e1,e2) op env
+    TBinOpNum  op _ e1 e2 -> bothConformTo TNumber (e1,e2) op env 
+    TBinOp op e1 e2 -> 
+        case op of
+            Eq  -> bothTypesEqual      (e1, e2) Eq env
+            And -> bothConformTo TBool (e1, e2) And env
+            Or  -> bothConformTo TBool (e1, e2) Or env
+            _   -> bothConformTo TNumber (e1,e2) op env
     TPrefix op e    -> do
         e' <- typeCheck env e
         case (op, e') of
@@ -51,8 +54,17 @@ typeCheck env = \case
             (Irred  , TNumber) -> return TBool
             (_      , _      ) -> throwErrorLift ("TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show e')
 
-bothTypesEqual :: BinOp -> TEnv -> TTm -> TTm -> Type -> ErrorT GState Type
-bothTypesEqual op env e1 e2 t  = do
+bothTypesEqual :: (TTm,TTm) -> BinOp -> TEnv -> ErrorT GState Type 
+bothTypesEqual (e1,e2) op env  = do
+    t1 <- typeCheck env e1
+    t2 <- typeCheck env e2
+    if t1 == t2 then
+        return t1
+    else
+        throwErrorLift ("TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show t1 ++ " and " ++ show t2)
+
+bothConformTo :: Type -> (TTm,TTm) -> BinOp -> TEnv -> ErrorT GState Type
+bothConformTo t (e1,e2) op env  = do
     t1 <- typeCheck env e1
     t2 <- typeCheck env e2
     if t1 == t && t2 == t then
