@@ -9,6 +9,9 @@ import Core.AST
 
 type ErrorT = ExceptT String
 
+throwErrorLift :: MonadError e m' => e -> m' a 
+throwErrorLift = liftEither . throwError
+
 -- Custome state for type context and value context
 -- As long as the getter and setter functions are used 
 -- this is can be considered as abstract
@@ -30,4 +33,9 @@ getVal = nameEnv
 data GEnv = GEnv {typeEnv :: TEnv , 
                   nameEnv :: VEnv}
 
+emptyEnv :: GEnv
+emptyEnv = GEnv [] []
+
 type GState = State GEnv
+
+type GStateT = StateT GEnv

@@ -4,6 +4,7 @@ import System.IO
 import System.Directory
 import Control.Monad (unless)
 import Control.Monad.State.Lazy  --StateT
+import Control.Monad.Except      -- ExceptT
 import Data.Functor.Identity
 
 import Text.Megaparsec.Error
@@ -21,27 +22,38 @@ import Data.Text hiding (length, map, unlines)
 main :: IO ()
 main = do
     args <- getArgs
-    parseArgs args
-    runRepl
+    env <- handleArgs args
+    runRepl env
 
-parseArgs :: [String] -> IO ()
---parseArgs ("load":files)   = loadFiles files
-parseArgs ("help":_)       = putStrLn help
-parseArgs ("docs":topic:_) = putStrLn $ helpOnTopic undefined -- here : topic -(parsing with pInfoTopic)-> ?
-parseArgs _                = putStrLn "No such command\n" >> putStrLn help
+handleArgs ::  [String] -> IO (GEnv)
+handleArgs xs = case pCommandLineCommand xs of
+    PrintHelpCL      -> do
+        putStrLn help
+        return emptyEnv
+    NoSuchCommandCl  -> do
+        putStrLn "No such command"
+        putStrLn help
+        return emptyEnv
+    GetInfoCL topic  -> do
+        putStrLn $ helpOnTopic topic
+        return emptyEnv
+    -- Ezt lehet ki lehetne absztrahálni
+    LoadFileCL files -> do
+        (logs, env) <- runStateT (loadFiles files) (GEnv [] [])
+        forM logs putStrLn
+        return env
 
 -- List of filenames, we open each one and we parse the contents
-loadFiles :: [String] -> StateT GEnv IO [String]
+loadFiles :: [String] -> GStateT IO [String]
 loadFiles [] = return ["No files loaded"]
 loadFiles filenames = do
     forM filenames processFile
     where
-        processFile :: String -> StateT GEnv IO String
+        processFile :: String -> GStateT IO String
         processFile filename = do
             b <- lift $ doesFileExist filename
             if b
                 then do
-                    -- TODO : parse the whole file not lines cos thats what evalFile does
                     con <- lift $ readFile filename
                     s <- evalFile filename con
                     return ("Loading file : " ++ filename ++ "\n" ++ s)
@@ -66,34 +78,44 @@ read_ = do
     hFlush stdout
     getLine
 
-evalFile :: String -> String -> StateT GEnv IO String
+evalFile :: String -> String -> GStateT IO String
 evalFile filename cs = case parseStringFile filename $ pack cs of
     Left a -> return $ errorBundlePretty a
     Right tms_defs -> do
         s <- mapM handleTmDef tms_defs
         return $ unlines s
     where
-        handleTmDef :: Either TTm TopDef -> StateT GEnv IO String
+        handleTmDef :: Either TTm TopDef -> GStateT IO String
         handleTmDef tm_def = case tm_def of
             Left tm   -> do
-                env <- get
                 lift $ putStrLn $ "running Tm : " ++ show tm
-                mapStateT (handleErrorTm env) (runTypedTerm tm)
+                handleErrorTm' (runTypedTerm tm)
             Right def -> do
-                env <- get
-                mapStateT (handleErrorString env) (handleTopDef def)
+                handleErrorString' (handleTopDef def)
 
-evalRepl :: String -> StateT GEnv IO String
+evalRepl :: String -> GStateT IO String
 evalRepl cs = case parseStringRepl $ pack cs of
-    Left a   -> return $ errorBundlePretty a        -- TODO : print errors
+    Left a   -> return $ errorBundlePretty a
     Right tm_co_def -> case tm_co_def of
         OLeft tm -> do
-            env <- get
-            mapStateT (handleErrorTm env) (runTypedTerm tm)
+            handleErrorTm' (runTypedTerm tm)
         OMiddle co -> handleCommand co
         ORight def -> do
-            env <- get
-            mapStateT (handleErrorString env) (handleTopDef def)
+            handleErrorString' (handleTopDef def)
+
+handleErrorTm' :: ErrorT GState Tm -> GStateT IO String
+handleErrorTm' e = 
+    let a = runExceptT e in 
+    mapStateT (\i -> 
+        let (e_tm, env) = runIdentity i in 
+        return (eitherIdL show e_tm,env)) a
+
+handleErrorString' :: ErrorT GState String -> GStateT IO String
+handleErrorString' e = 
+    let a = runExceptT e in
+    mapStateT (\i -> 
+        let (e_s, env) = runIdentity i in 
+        return (eitherId e_s, env)) a
 
 handleErrorString :: GEnv -> Error (String, GEnv) -> IO (String, GEnv)
 handleErrorString env = either 
@@ -110,21 +132,21 @@ handleErrorTm env = either
     Nothing         -> return ("Type error",env)
 -}
 
-handleTopDef :: TopDef -> StateT GEnv Error String
+handleTopDef :: TopDef -> ErrorT GState String
 handleTopDef def = case def of
     LetDef name ttm -> do
         t <- typeCheck [] ttm
-        val <- (state . runState) $ evalTerm [] (loseType ttm)
+        val <- lift $ evalTerm [] (loseType ttm)
         modify $ insertType (name, t)
         modify $ insertVal (name, val)
-        return ("saved " ++ unpack name)
+        return ("saved " ++ unpack name ++ " : " ++show t)
     VarDef name    -> do
-        modify $ insertType (name, TPoly) -- TODO : No TTop
+        modify $ insertType (name, TPoly)
         modify $ insertVal (name, VPolyVar name)
         return $ unpack name ++ " is now a polinomial variable"
 
 -- This type is not strong enough, cos here we have to do a lot of things like IO, ...
-handleCommand :: Command -> StateT GEnv IO String
+handleCommand :: Command -> GStateT IO String
 handleCommand co = case co of
     PrintHelp   -> return help
     RunTimed tm -> undefined -- run tm and print out measure the time it took
@@ -135,10 +157,10 @@ handleCommand co = case co of
 print_ :: String -> IO ()
 print_ = putStrLn
 
-runRepl :: IO ()
-runRepl = evalStateT runStatefulRepl $ GEnv [] []
+runRepl :: GEnv -> IO ()
+runRepl = evalStateT runStatefulRepl
 
-runStatefulRepl :: StateT GEnv IO ()
+runStatefulRepl :: GStateT IO ()
 runStatefulRepl = do
     inp <- lift read_                           -- Lift IO into StateT IO
     unless (trimS inp == ":q") $ do

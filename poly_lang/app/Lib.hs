@@ -45,3 +45,11 @@ filterToEither (_ : xs)         = filterToEither xs
 
 eitherOptionP :: Alternative m => m a -> m b -> m c -> m (Option a b c)
 eitherOptionP a b c = (OLeft <$> a) <|> (OMiddle <$> b) <|> (ORight <$> c)
+
+-- Either utility functions
+
+eitherId = either id id
+
+eitherIdL = either id
+
+eitherIdR f = either f id

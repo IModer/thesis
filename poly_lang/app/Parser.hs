@@ -202,6 +202,23 @@ pTm  = try (choice
     , {-dbg "letbind"-} parens pTm
     ] <?> "a valid term")
 
+data CommandLineCommand
+    = PrintHelpCL
+    | NoSuchCommandCl
+    | GetInfoCL Topic
+    | LoadFileCL [String]
+
+pCommandLineCommand :: [String] -> CommandLineCommand
+pCommandLineCommand ("load":files)   = LoadFileCL files
+pCommandLineCommand ("help":_)       = PrintHelpCL
+pCommandLineCommand ("docs":topic:_) = 
+    let (e_t) = parse pInfoTopic "(cmd)" $ pack topic in
+        case e_t of
+            Left _ -> NoSuchCommandCl
+            Right tpc -> GetInfoCL tpc
+pCommandLineCommand _                = NoSuchCommandCl
+
+
 data Command
     = PrintHelp         -- :h              | : help
     | RunTimed TTm      -- :b <tm>         | :timeit <tm>  -- Bentchmark

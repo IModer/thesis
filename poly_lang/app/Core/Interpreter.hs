@@ -16,21 +16,10 @@ import Data.Text hiding (map, elem)
 import Ring hiding (mod, div)
 
 
--- TEST
-
-test :: TTm -> ErrorT (State GEnv) Tm
-test ttm = do
-    _ <- testtypeCheck [] ttm
-    lift $ normalForm (loseType ttm)
-
-testtypeCheck :: TEnv -> TTm -> ErrorT (State GEnv) Type
-testtypeCheck = undefined
-
-
-runTypedTerm :: TTm -> StateT GEnv Error Tm
+runTypedTerm :: TTm -> ErrorT GState Tm
 runTypedTerm tm = do
-    --_ <- typeCheck [] tm
-    (state . runState) $ normalForm (loseType tm) -- Unbox and box (StateT Id -> StateT Maybe)
+    _ <- typeCheck [] tm
+    lift $ normalForm (loseType tm)
 
 --- Evaluation ---
 
