@@ -4,6 +4,7 @@ module Parser where
 
 import Core.AST hiding (Prefix)
 import Lib
+import Ring
 
 import Control.Applicative hiding (many, some)
 import Control.Monad
@@ -70,7 +71,12 @@ parens :: Parser a -> Parser a
 parens p   = char '(' *> p <* char ')'
 
 keywords :: [Name]
-keywords = ["\\", "let", "in", "def", "mod", "div", "factor", "irred", "derivative", "var"]
+keywords = ["\\", "let", "in", "def"
+            , "mod", "div", "factor"
+            , "irred", "derivative"
+            , "var" 
+            ,"if", "then", "else"
+            , "open", "close" , "Zmod"]
 
 keyword :: Text -> Bool
 keyword x = x `elem` keywords
@@ -154,6 +160,7 @@ pExprT = try $ choice
     , {-dbg "variable"    -} pVariable    <?> "variable"
     , {-dbg "function"    -} pLam         <?> "function"
     , {-dbg "let expr"    -} pLet         <?> "let expr"
+    , {-dbg "if  expr"    -} pIfThenElse  <?> "if expr"
     ]
 
 pExpr :: Parser TTm
@@ -171,6 +178,16 @@ pLam = do
     void $ symbol "."
     u <- pTm
     return $ TLam x t u
+
+pIfThenElse :: Parser TTm
+pIfThenElse = do
+    pKeyword "if"
+    b <- pTm
+    pKeyword "then"
+    e1 <- pTm
+    pKeyword "else"
+    e2 <- pTm
+    return $ TIfThenElse b e1 e2
 
 pLet :: Parser TTm
 pLet = do
@@ -201,7 +218,8 @@ pTm  = try (choice
     [ {-dbg "expr"   -} pExpr
     , {-dbg "lambda" -} pLam
     , {-dbg "letbind"-} pLet
-    , {-dbg "letbind"-} parens pTm
+    , {-dbg "if bind"-} pIfThenElse
+    , {-dbg "parens "-} parens pTm
     ] <?> "a valid term")
 
 data CommandLineCommand
@@ -231,6 +249,8 @@ data Command
 data TopDef
     = LetDef Name TTm
     | VarDef Name
+    | OpenDef TTm
+    | CloseDef
     deriving Show
 
 pLetDef :: Parser TopDef
@@ -248,8 +268,19 @@ pVarDef = do
     i <- pIdent
     return $ VarDef i
 
+pOpenDef :: Parser TopDef
+pOpenDef = do
+    void $ symbol "open"
+    tm <- pTm
+    return $ OpenDef tm
+
+pCloseDef :: Parser TopDef
+pCloseDef = do
+    void $ symbol "close"
+    return CloseDef
+
 pTopDef :: Parser TopDef
-pTopDef = pLetDef <|> pVarDef
+pTopDef = choice [pLetDef, pVarDef, pOpenDef, pCloseDef]
 
 pSimpleCommand :: Char -> Text -> Command -> Parser Command
 pSimpleCommand c s co = do

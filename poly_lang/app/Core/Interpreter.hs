@@ -37,25 +37,21 @@ evalTerm env' = \case
         maybe   (return $ fromJust $ lookup n $ getVal env) 
                 return
                 (lookup n env')
-        --return $ fromJust $ lookup n $ nameEnv env -- NOTE: fromJust is safe
     App t u   -> do
---        env <- get
         t' <- evalTerm env' t
-        u' <- evalTerm env' u 
+        u' <- evalTerm env' u
         return $ vLamApp t' u'
     Lam n t   -> do
         env <- get
         return $ VLam n (\u -> evalState (evalTerm ((n, u):env') t) env )
-        {-
-        return $ VLam n (\u -> evalState (do
-            modify (insertName (n, u))
-            evalTerm t) env)
-        -}
+    IfThenElse b t u -> do
+        b' <- evalTerm env' b
+        case b' of
+            (VBool True ) -> evalTerm env' t
+            (VBool False) -> evalTerm env' u
+            _             -> undefined
     Let n e u -> do
         e' <- evalTerm env' e
-        {-
-        modify $ insertName (n , e')
-        -}
         evalTerm ((n, e'):env') u
     Lit l     -> return $ VLit l
     Prefix op e -> do
@@ -66,6 +62,12 @@ evalTerm env' = \case
             (Irred  , VNumber i) -> VBool (irred i)
             (Der    , VNumber i) -> VNumber (derivative i)
             (_      , a        ) -> VPrefix op a
+    BinOpPoly op f e u -> do
+        e' <- evalTerm env' e
+        u' <- evalTerm env' u
+        return $ case (e', u') of
+            (VPoly i, VPoly j) -> VPoly $ i `f` j
+            (a      , b      ) -> VBinOpPoly op f a b
     BinOpBool op f e u -> do
         e' <- evalTerm env' e
         u' <- evalTerm env' u
@@ -78,7 +80,7 @@ evalTerm env' = \case
         return $ case (e', u') of
             (VNumber i, VNumber j) -> VNumber $ i `f` j
             (a      , b      )     -> VBinOpNum op f a b
-    -- Here we want to comtrol what output type we have and so on...
+    -- Here we want to control what output type we have and so on...
     BinOp op e u -> do
         e' <- evalTerm env' e
         u' <- evalTerm env' u
@@ -99,9 +101,9 @@ quoteTerm ns = \case
     VLam (freshName ns -> x) t  -> Lam x (quoteTerm (x:ns) (t (VVar x)))
     VPrefix op l                -> Prefix op (quoteTerm ns l)
     VBinOp op l r               -> BinOp op (quoteTerm ns l) (quoteTerm ns r)
+    VBinOpPoly op f l r         -> BinOpPoly op f (quoteTerm ns l) (quoteTerm ns r)
     VBinOpBool op f l r         -> BinOpBool op f (quoteTerm ns l) (quoteTerm ns r)
     VBinOpNum op f l r          -> BinOpNum op f (quoteTerm ns l) (quoteTerm ns r)
-    VPolyVar n                  -> Var n
 
 normalForm :: Tm -> State GEnv Tm
 normalForm tm = do

@@ -3,6 +3,8 @@ module Core.Classes where
 import Control.Monad.State
 import Control.Monad.Except
 import Core.AST
+import Ring
+import GHC.TypeNats
 
 -- Error type for typechecking errors
 -- is a monad
@@ -18,11 +20,12 @@ throwErrorLift = liftEither . throwError
 type TEnv = [(Name, Type)]
 type VEnv  = [(Name, Val)]
 
+
 insertType :: (Name, Type) -> GEnv -> GEnv
-insertType xt (GEnv tenv env) = GEnv (xt : tenv) env
+insertType xt genv = genv { typeEnv =  xt : typeEnv genv}
 
 insertVal :: (Name, Val) -> GEnv -> GEnv
-insertVal nv (GEnv tenv env) = GEnv tenv (nv : env)
+insertVal nv genv = genv {nameEnv = nv : nameEnv genv} 
 
 getType :: GEnv -> TEnv
 getType = typeEnv
@@ -30,11 +33,19 @@ getType = typeEnv
 getVal :: GEnv -> VEnv
 getVal = nameEnv
 
-data GEnv = GEnv {typeEnv :: TEnv , 
-                  nameEnv :: VEnv}
+getZmodN :: GEnv -> Maybe Number
+getZmodN = zmodn
+
+getZmodF :: GEnv -> Maybe CPolyMulti
+getZmodF = zmodf
+
+data GEnv = GEnv { typeEnv :: TEnv
+                 , nameEnv :: VEnv
+                 , zmodn :: Maybe Number
+                 , zmodf :: Maybe CPolyMulti }
 
 emptyEnv :: GEnv
-emptyEnv = GEnv [] []
+emptyEnv = GEnv [] [] Nothing Nothing
 
 type GState = State GEnv
 

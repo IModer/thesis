@@ -40,7 +40,7 @@ handleArgs xs = case pCommandLineCommand xs of
         return emptyEnv
     -- Ezt lehet ki lehetne absztrahálni
     LoadFileCL files -> do
-        (logs, env) <- runStateT (loadFiles files) (GEnv [] [])
+        (logs, env) <- runStateT (loadFiles files) (emptyEnv)
         forM_ logs putStrLn
         return env
 
@@ -88,8 +88,10 @@ evalFile filename cs = case parseStringFile filename $ pack cs of
     where
         handleTmDef :: Either TTm TopDef -> GStateT IO String
         handleTmDef tm_def = case tm_def of
+-- TODO : le kell kezelni ha a kifejezés nem volt helyes,
+--  hogy akkor az egész ne töltsön be
             Left tm   -> do
-                lift $ putStrLn $ "running Tm : " ++ show tm
+--                lift $ putStrLn $ "running Tm : " ++ show tm
                 handleErrorShow (runTypedTerm tm)
             Right def -> do
                 handleErrorString (handleTopDef def)
@@ -125,20 +127,25 @@ handleTopDef def = case def of
         val <- lift $ evalTerm [] (loseType ttm)
         modify $ insertType (name, t)
         modify $ insertVal (name, val)
-        return ("saved " ++ unpack name ++ " : " ++show t)
+        return ("saved " ++ unpack name ++ " : " ++ show t)
     VarDef name    -> do
         modify $ insertType (name, TPoly)
-        modify $ insertVal (name, VPolyVar name)
-        return $ unpack name ++ " is now a polinomial variable"
+        case toPolyMulti $ unpack name of
+            Just p -> do
+                modify $ insertVal (name, VPoly p)
+                return $ unpack name ++ " is now a polinomial variable"
+            Nothing -> throwErrorLift (unpack name ++ " cannot be made a polinomial variable")
+    OpenDef a -> undefined
+    CloseDef -> undefined
 
 handleCommand :: Command -> GStateT IO String
 handleCommand co = case co of
     PrintHelp   -> return help
     RunTimed tm -> do  -- run tm and print out measure the time it took
         t1 <- lift $ getTime Monotonic
-        handleErrorShow (runTypedTerm tm)
+        rs <- handleErrorShow (runTypedTerm tm)
         t2 <- lift $ getTime Monotonic
-        return $ "running it took: " ++ show (toNanoSecs $ diffTimeSpec t1 t2) ++ " ns"
+        return $ rs ++ "\nrunning it took: " ++ show (toNanoSecs $ diffTimeSpec t1 t2) ++ " ns"
     LoadFile ns -> unlines <$> loadFiles (map unpack ns) -- load files then 
     GetType  tm -> handleErrorShow (typeCheck [] tm)  -- we have to typecheck tm then print out the type
     GetInfo  tp -> return $ helpOnTopic tp
