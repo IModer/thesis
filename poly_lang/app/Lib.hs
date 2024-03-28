@@ -53,3 +53,8 @@ eitherId = either id id
 eitherIdL = either id
 
 eitherIdR f = either f id
+
+-- very bad function
+
+replaceAtIndex :: Int -> a -> [a] -> [a]
+replaceAtIndex i x xs = take i xs ++ [x] ++ drop (i + 1) xs

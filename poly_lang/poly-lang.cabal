@@ -82,9 +82,11 @@ executable poly-lang
                         text,
                         poly,
                         vector,
+                        vector-sized,
                         semirings >= 0.6,
                         directory,
-                        clock
+                        clock,
+                        finite-typelits
     -- transformers
 
     -- Directories containing source files.
