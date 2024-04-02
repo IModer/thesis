@@ -6,7 +6,8 @@ import Prelude hiding (negate, replicate, init)
 import Data.Ratio
 -- Poly
 import qualified Data.Poly.Semiring as PS
-import Data.Poly.Multi.Semiring
+import Data.Poly.Multi.Semiring --(unMultiPoly)
+--import Data.Poly.Multi.Laurent
 
 -- Show
 import Data.List (intersperse)
@@ -16,7 +17,7 @@ import qualified Data.Vector.Unboxed.Sized as SU
 import Data.Maybe (fromJust) 
 
 import Data.Euclidean
-import Data.Semiring hiding ((+), (-), (*), (^), fromInteger)
+import Data.Semiring hiding ((+), (-), (*), (^), fromInteger, fromIntegral)
 import GHC.TypeNats
 import Data.Finite
 import Lib
@@ -224,13 +225,41 @@ type CPolyMono = PS.VPoly (Complex Rational)
 
 -- ? type CPolyMulti = forall n. VMultiPoly n (Complex Rational) -- TODO : good question if this can be made variable
 
-type CPoly (n :: Nat) = VMultiPoly n (Complex Rational)
+--type CPoly (n :: Nat) = VMultiPoly n (Complex Rational)
 
 newtype CPolyMulti = Box (VMultiPoly 26 (Complex Rational))
+    deriving Eq
 
 vars = ['A'..'Z']
 
 instance Show CPolyMulti where
+{-
+    showsPrec d (Box p) --(MultiLaurent off (MultiPoly xs))
+        | G.null xs = showString "0"
+        | otherwise = showParen (d > 0)
+            $ foldl (.) id
+            $ intersperse (showString " + ")
+            $ G.foldl (\acc (is, c) -> showCoeff (SU.map fromIntegral is + off) c : acc) [] xs
+        where
+            xs = unMultiPoly $ snd $ unMultiLaurent p
+            off = fst $ unMultiLaurent p
+
+            showCoeff is c
+                = showsPrec 7 c . foldl (.) id
+                ( map ((showString " * " .) . uncurry showPower)
+                $ filter ((/= 0) . fst)
+                $ zip (SU.toList is) (finites :: [Finite 26]))
+
+            -- Negative powers should be displayed without surrounding brackets
+            showPower :: Int -> Finite n -> String -> String
+            showPower 1 n = showString (showVar n)
+            showPower i n = showString (showVar n) . showString ("^" ++ show i)
+
+            showVar :: Finite n -> String
+            showVar k = maybe "" (:"") $ lookup i (zip [1..] vars)
+                where
+                    i = getFinite k
+-}
     -- This is from : https://hackage.haskell.org/package/poly-0.5.1.0/docs/src/Data.Poly.Internal.Multi.html#MultiPoly
     showsPrec d (Box p)
         | G.null (unMultiPoly p) = showString "0"
@@ -255,24 +284,43 @@ instance Show CPolyMulti where
 
 toPolyMulti :: String -> Maybe CPolyMulti
 toPolyMulti s =
-    if (length s) /= 1 
+    if (length s) /= 1
         then Nothing
         else do
             s' <- lookup (s !! 0) (zip vars [1..])
             ls <- (SU.fromList $ replaceAtIndex s' (1 :: Word) (take 26 $ repeat (0 :: Word)) :: Maybe (SU.Vector 26 Word))
             return $ Box $ (monomial ls 1 :: VMultiPoly 26 (Complex Rational))
-    where
 
 instance Num CPolyMulti where
     (Box ap) + (Box bp) = Box $ ap + bp
-    (Box ap) - (Box bp) = Box $ ap + bp
-    (Box ap) * (Box bp) = Box $ ap + bp
+    (Box ap) - (Box bp) = Box $ ap - bp
+    (Box ap) * (Box bp) = Box $ ap * bp
 
     abs (Box p) = Box $ abs p
     signum (Box p) = Box $ signum p
     negate (Box p) = Box $ GHC.Num.negate p
     fromInteger i = Box $ fromInteger i
 
+
+instance Ord CPolyMulti where
+    compare = error "compare"
+
+instance Real CPolyMulti where
+    toRational = error "toRational"
+
+instance Enum CPolyMulti where
+    toEnum = error "toEnum"
+    fromEnum = error "fromEnum"
+
+
+instance Integral CPolyMulti where
+    --quotRem (Box i) (Box j) = let (q , r) = Data.Euclidean.quotRem i j in (Box q, Box r)
+    quotRem = error "quotRem"
+    toInteger = error "toInteger"
+
+instance Fractional CPolyMulti where
+    (/) = error "negate"
+    fromRational r = error "fromRational"
 
 --toPolyMulti n = monomial (oneAtN n) 1
 --    where
@@ -292,6 +340,7 @@ derivative :: Number -> Number
 derivative a = undefined
 
 -- Num CPoly
+{-
 binopPoly :: (KnownNat n) => [CPoly n -> CPoly n -> CPoly n]
 binopPoly = 
     [ (+)
@@ -304,6 +353,7 @@ unaryPoly =
     [ abs
     , signum
     ]
+-}
 
 -- Euclidian CPoly
 {-

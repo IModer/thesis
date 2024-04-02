@@ -64,10 +64,10 @@ executable poly-lang
     -- Modules included in this executable, other than Main.
     -- other-modules:
     other-modules:      Core.AST,
+                        Core.Types,
                         Core.TypeChecker,
                         Core.Classes,
-                        Core.Interpreter, 
-                        Ring, 
+                        Core.Interpreter,
                         Parser, 
                         Lib
 
