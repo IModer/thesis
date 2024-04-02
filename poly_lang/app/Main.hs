@@ -15,7 +15,7 @@ import Core.TypeChecker
 import Core.Interpreter
 import Core.Classes
 import Core.AST
-import Ring
+import Core.Types
 import Lib
 import Parser
 import Data.Text hiding (length, map, unlines)
@@ -65,7 +65,7 @@ help :: String
 help = "Usage : poly_lang.exe <command>   \n\
                       \Commands: \tload <file1> [<file2> ...] - loads the specified files\n\
                       \ \t\thelp - prints this help\n\
-                      \ \t\tdocs <topic> - Prints help on the specified topic, use `docs topis` to print out the available topics"
+                      \ \t\tdocs <topic> - Prints help on the specified topic, use `docs topic` to print out the available topics"
 
 helpOnTopic :: Topic -> String
 helpOnTopic = \case
@@ -130,7 +130,7 @@ handleTopDef def = case def of
         return ("saved " ++ unpack name ++ " : " ++ show t)
     VarDef name    -> do
         modify $ insertType (name, TPoly)
-        case toPolyMulti $ unpack name of
+        case stringToPoly $ unpack name of
             Just p -> do
                 modify $ insertVal (name, VPoly p)
                 return $ unpack name ++ " is now a polinomial variable"

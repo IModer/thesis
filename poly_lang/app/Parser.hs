@@ -3,8 +3,12 @@
 module Parser where
 
 import Core.AST hiding (Prefix)
+import Core.Types
+import Data.Euclidean
+import Data.Semiring
 import Lib
-import Ring
+
+import Prelude hiding ((*), (+), negate, (-), quot, rem, lcm, gcd)
 
 import Control.Applicative hiding (many, some)
 import Control.Monad
@@ -102,7 +106,7 @@ pLit = pInt <|> pBool
 pInt :: Parser TTm
 pInt = do
     i <- lexeme L.decimal
-    return $ TLit $ LNumber i
+    return $ TLit $ LNum $ i %% 1
 
 pBool :: Parser TTm
 pBool = choice
@@ -116,28 +120,28 @@ operatorTable =
         binaryL ""  TApp
     ] ,
     [
-      prefix  "-"   (TPrefix Neg)
-    , prefix  "factor" (TPrefix Factor)
-    , prefix  "irred" (TPrefix Irred)
-    , prefix  "derivative" (TPrefix Der)
+      prefix  "-"          (TPrefix Neg   )
+    , prefix  "factor"     (TPrefix Factor)
+    , prefix  "irred"      (TPrefix Irred )
+    , prefix  "derivative" (TPrefix Der   )
     ] ,
     [
-      binaryL "*"   (TBinOpNum Times (*))
-    , binaryL "/"   (TBinOpNum Div   (/))
-    , binaryL "div" (TBinOpNum IntDiv quot)
-    , binaryL "mod" (TBinOpNum Mod    rem)
-    , binaryL "=="   (TBinOp Eq)
+      binaryL "*"   (TBinEucOp Times  (*)  )
+    , binaryL "/"   (TBinFieldOp Div  ((unsafe .) . divide)  )
+    , binaryL "div" (TBinEucOp IntDiv quot )
+    , binaryL "mod" (TBinEucOp Mod    rem  )
+    , binaryL "=="  (TBinPred Eq      (==) )
     ] ,
-    [ 
-      binaryL "+"   (TBinOpNum Plus  (+))
-    , binaryL "-"   (TBinOpNum Minus (-))
-    , binaryL "|"   (TBinOpBool Or  (||))
-    , binaryL "&"   (TBinOpBool And (&&))
-    , binaryL "^"   (TBinOpNum Pow   (^))
-    , binaryL "<="  (TBinOp Lte)
-    , binaryL ">="  (TBinOp Gte)
-    , binaryL "<"   (TBinOp Lt)
-    , binaryL ">"   (TBinOp Gt)
+    [
+      binaryL "+"   (TBinEucOp Plus   (+)  )
+    , binaryL "-"   (TBinEucOp Minus  (-)  )
+    , binaryL "|"   (TBinOpBool Or    (||) )
+    , binaryL "&"   (TBinOpBool And   (&&) )
+--    , binaryL "^"   (TBinOp Pow   (^)  )
+    , binaryL "<="  (TBinPred Lte (<=) )
+    , binaryL ">="  (TBinPred Gte (>=) )
+    , binaryL "<"   (TBinPred Lt  (<)  )
+    , binaryL ">"   (TBinPred Gt  (>)  )
     ]
   ]
 
@@ -201,7 +205,10 @@ pLet = do
 
 pBaseType :: Parser Type
 pBaseType = choice
-    [ symbol "Num"  $> TNumber
+    [ symbol "Num"  $> TNum
+    , symbol "CNum"  $> TCNum
+    , symbol "Poly"  $> TPoly
+    , symbol "CPoly"  $> TCPoly
     , symbol "Bool" $> TBool
     , symbol "Top"  $> TTop
     , parens pType
@@ -289,7 +296,7 @@ pSimpleCommand c s co = do
 
 pFileName :: Parser Text
 pFileName = do
-    x <- takeWhile1P (Just "a file name") (isFileNameChar)
+    x <- takeWhile1P (Just "a file name") isFileNameChar
     x <$ ws
 
 isFileNameChar :: Char -> Bool
