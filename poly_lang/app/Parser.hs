@@ -80,7 +80,8 @@ keywords = ["\\", "let", "in", "def"
             , "irred", "derivative"
             , "var" 
             ,"if", "then", "else"
-            , "open", "close" , "Zmod"]
+            , "open", "close" , "Zmod"
+            , "i", "tt"]
 
 keyword :: Text -> Bool
 keyword x = x `elem` keywords
@@ -101,7 +102,17 @@ pVariable :: Parser TTm
 pVariable = TVar <$> pIdent
 
 pLit :: Parser TTm
-pLit = pInt <|> pBool
+pLit = pInt <|> pBool <|> pCompI <|> pTT
+
+pTT :: Parser TTm
+pTT = do
+    void $ symbol "tt"
+    return $ TLit $ LTop ()
+
+pCompI :: Parser TTm
+pCompI = do
+    void $ symbol "i"
+    return $ TLit $ LCNum $ ((0 %% 1) :+ (1 %% 1)) -- i
 
 pInt :: Parser TTm
 pInt = do

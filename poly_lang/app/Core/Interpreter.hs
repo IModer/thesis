@@ -59,33 +59,73 @@ evalTerm env' = \case
     Lit l     -> return $ VLit l
     Prefix op e -> do
         e' <- evalTerm env' e
-        return $ case (op , e') of
-            (Neg    , VNum i) -> VNum (negate i)
-            (Factor , VNum i) -> VNum (factor i)
-            (Irred  , VNum i) -> VBool (irred i)
-            (Der    , VNum i) -> VNum (derivative i)
-            (_      , a     ) -> VPrefix op a
-    BinFieldOp op f e1 e2 -> undefined
-    BinEucOp op f e1 e2 -> undefined
-{-
-    BinOp op f e u -> do
+        return $ case op of
+            Neg    -> case e' of
+                        (VNum   i) -> VNum   $ negate i
+                        (VCNum  i) -> VCNum  $ negate i
+                        (VPoly  i) -> VPoly  $ negate i
+                        (VCPoly i) -> VCPoly $ negate i
+                        (a       ) -> VPrefix op a
+            Factor -> case e' of
+                        (VPoly  i) -> VPoly  $ factor i
+                        (VCPoly i) -> VCPoly $ factor i
+                        (a       ) -> VPrefix op a
+            Der    -> case e' of
+                        (VPoly  i) -> VPoly  $ derivative i
+                        (VCPoly i) -> VCPoly $ derivative i
+                        (a       ) -> VPrefix op a
+            Irred  -> case e' of
+                        (VPoly  i) -> VPoly  $ irred i
+                        (VCPoly i) -> VCPoly $ irred i
+                        (a       ) -> VPrefix op a
+    -- e1 and e2 are in [CNum, Num]
+    BinFieldOp op f e u -> do
+        e' <- evalTerm env' e
+        u' <- evalTerm env' u
+        return $ case (e', u') of 
+            (VCNum i, VCNum j) -> VCNum (i `f` j)
+            (VNum  i, VCNum j) -> VCNum (fracToComplex i `f` j)
+            (VCNum i, VNum  j) -> VCNum (i `f` fracToComplex j)
+            (VNum  i, VNum  j) -> VNum  (i `f` j)
+            (a      ,       b) -> VBinFieldOp op f a b
+    -- e1 and e1 are in [TNum, TCNum, TPoly, TCPoly]
+    -- with the exception that (e1,e2) cannot be (TPoly, TCNum) or (TCNum, TPoly)
+    BinEucOp op f e u -> do
         e' <- evalTerm env' e
         u' <- evalTerm env' u
         return $ case (e', u') of
-            (VNum i, VNum j) -> VNum (i `f` j)
---            (VPoly i  , VPoly j  ) -> VPoly   (i `f` j)
-            (a        , b        ) -> VBinOp  op f a b
---            (VBool i  , VBool j  ) -> VBool   (i `f` j)
--}
-    -- e and u are both the same non function type
+            (VCPoly i, VCPoly j) -> VCPoly (i `f` j)
+            (VPoly  i, VPoly  j) -> VPoly  (i `f` j)
+            (VCNum  i, VCNum  j) -> VCNum  (i `f` j)
+            (VNum   i, VNum   j) -> VNum   (i `f` j)
+            -- Poly & CNum -> CPoly
+            (VPoly i, VCNum  j ) -> VCPoly (polyToCPoly i `f` (unsafe $ complexToComplexPoly j))
+            (VCNum i, VPoly  j ) -> VCPoly ((unsafe $ complexToComplexPoly i) `f` polyToCPoly j)
+            -- CPoly & Poly -> CPoly
+            (VCPoly i, VPoly  j) -> VCPoly (i `f` polyToCPoly j)
+            (VPoly  i, VCPoly j) -> VCPoly (polyToCPoly i `f` j)
+            -- CPoly & CNum -> CPoly
+            (VCPoly i, VCNum  j) -> VCPoly (i `f` (unsafe $ complexToComplexPoly j))
+            (VCNum  i, VCPoly j) -> VCPoly ((unsafe $ complexToComplexPoly i) `f` j)
+            -- CPoly & Num -> CPoly
+            (VCPoly i, VNum   j) -> VCPoly (i `f` (unsafe $ fracToComplexPoly j))
+            (VNum   i, VCPoly j) -> VCPoly ((unsafe $ fracToComplexPoly i) `f` j)
+            -- Poly & Num -> Poly
+            (VPoly  i, VNum   j) -> VPoly  (i `f` (unsafe $ fracToPoly j))
+            (VNum   i, VPoly  j) -> VPoly  ((unsafe $ fracToPoly i) `f` j)
+            -- CNum & Num -> CNum
+            (VNum   i, VCNum  j) -> VCNum  (fracToComplex i `f` j)
+            (VCNum  i, VNum   j) -> VCNum  (i `f` fracToComplex j)
+            (a       , b       ) -> VBinEucOp op f a b
+    -- e and u are both the same and have Ord [Bool, Num, Top]
     BinPred op f e u -> do
         e' <- evalTerm env' e
         u' <- evalTerm env' u
         return $ case (e', u') of
-            (VNum i, VNum j)              -> VBool (i `f` j)
-            (VBool i  , VBool j  )        -> VBool (i `f` j)
-            (VLit (LTop _),VLit (LTop _)) -> VBool (f () ())
-            (a        , b        )        -> VBinPred op f a b
+            (VNum i  , VNum j ) -> VBool (i `f` j)
+            (VBool i , VBool j) -> VBool (i `f` j)
+            (VTop    , VTop   ) -> VBool True
+            (a       , b      ) -> VBinPred op f a b
     BinOpBool op f e u -> do
         e' <- evalTerm env' e
         u' <- evalTerm env' u
@@ -100,7 +140,6 @@ quoteTerm ns = \case
     VLit l                      -> Lit l
     VLam (freshName ns -> x) t  -> Lam x (quoteTerm (x:ns) (t (VVar x)))
     VPrefix op l                -> Prefix op (quoteTerm ns l)
---    VBinOp op f l r             -> BinOp op f (quoteTerm ns l) (quoteTerm ns r)
     VBinPred op f l r           -> BinPred op f (quoteTerm ns l) (quoteTerm ns r)
     VBinEucOp op f l r          -> BinEucOp op f (quoteTerm ns l) (quoteTerm ns r)
     VBinFieldOp op f l r        -> BinFieldOp op f (quoteTerm ns l) (quoteTerm ns r)

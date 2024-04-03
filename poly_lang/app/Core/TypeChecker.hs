@@ -9,6 +9,7 @@ import Core.AST
 import Lib
 import Core.Classes
 import qualified Data.Text as T
+import Data.List (intercalate)
 
 typeCheck :: TEnv -> TTm -> ErrorT GState Type
 typeCheck env = \case
@@ -57,26 +58,64 @@ typeCheck env = \case
         if t1 == t2 && hasOrd t1
             then return TBool
             else throwErrorLift ("TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show t1 ++ " and " ++ show t2)
-    -- This should allow Poly `op` Number and Number `op` Poly
-    TBinFieldOp op f e1 e2 -> undefined
-    TBinEucOp op f e1 e2 -> undefined
-    --TBinOp op f e1 e2 -> bothTypesEqual (e1, e2) isNumType op env
-{-
-    TBinOp op f e1 e2 ->
-        case op of
-            Eq  -> bothTypesEqual        (e1, e2) Eq  env
-            And -> bothConformTo TBool   (e1, e2) And env
-            Or  -> bothConformTo TBool   (e1, e2) Or  env
-            _   -> bothConformTo TNumber (e1,e2)  op  env
--}
+    TBinFieldOp op f e1 e2 -> do
+        t1 <- typeCheck env e1
+        t2 <- typeCheck env e2
+        case (t1, t2) of
+            (TNum  , TNum ) -> return TNum
+            (TNum  , TCNum) -> return TCNum
+            (TCNum , TNum ) -> return TCNum
+            (TCNum , TCNum) -> return TCNum
+            (a     , b    ) -> throwErrorLift $ cannotBeCalledWithError t1 t2 op
+    TBinEucOp op f e1 e2 -> do
+        t1 <- typeCheck env e1
+        t2 <- typeCheck env e2
+        if hasEuclid t1 && hasEuclid t2
+            {- We can only move along this diagram :
+                Num  ----> CNum
+                 |           |
+                 |           |
+                 V           V
+                Poly ----> CPoly   -}
+            then case (t1, t2) of
+                (TCPoly , _     ) -> return TCPoly
+                (_      , TCPoly) -> return TCPoly
+                (TPoly  , TCNum ) -> return TCPoly
+                (TCNum  , TPoly ) -> return TCPoly
+                {-
+                (TPoly  , TCNum ) -> throwErrorLift $ cannotBeCalledWithError t1 t2 op
+                (TCNum  , TPoly ) -> throwErrorLift $ cannotBeCalledWithError t1 t2 op
+                -}
+                (TPoly  , TPoly ) -> return TPoly
+                (TPoly  , TNum  ) -> return TPoly
+                (TNum   , TPoly ) -> return TPoly
+                (TCNum  , TCNum ) -> return TCNum
+                (TCNum  , TNum  ) -> return TCNum
+                (TNum   , TCNum ) -> return TCNum
+                (TNum   , TNum  ) -> return TNum
+            else throwErrorLift $ cannotBeCalledWithError t1 t2 op
+    -- It might be worth it to abstract out Poly -> Poly ops
     TPrefix op e    -> do
         e' <- typeCheck env e
-        case (op, e') of
-            (Neg    , TNum)    -> return TNum
-            (Factor , TPoly)   -> return TPoly
-            (Der    , TPoly)   -> return TPoly
-            (Irred  , TPoly)   -> return TBool
-            (_      , _      ) -> throwErrorLift ("TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show e')
+        case op of
+            Neg    -> if hasEuclid e' 
+                        then return e' 
+                        else throwErrorLift $ cannotBeCalledWithError' e' op
+            Factor -> if isPoly e'
+                        then return e'
+                        else throwErrorLift $ cannotBeCalledWithError' e' op
+            Der    -> if isPoly e'
+                        then return e'
+                        else throwErrorLift $ cannotBeCalledWithError' e' op
+            Irred  -> if isPoly e'
+                        then return TBool
+                        else throwErrorLift $ cannotBeCalledWithError' e' op
+
+cannotBeCalledWithError :: Type -> Type -> BinOp -> String
+cannotBeCalledWithError t1 t2 op = "TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show t1 ++ " and " ++ show t2
+
+cannotBeCalledWithError' :: Type -> PrefixOp -> String
+cannotBeCalledWithError' ts op = "TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show ts 
 
 couldntMatchTypeError :: Type -> Type -> String -> String
 couldntMatchTypeError t1 t2 reason = "TypeError : \nCould not match type : " 
@@ -84,6 +123,7 @@ couldntMatchTypeError t1 t2 reason = "TypeError : \nCould not match type : "
     ++ show t2 ++ "\nReason: " ++ reason
 
 -- Maybe inline this again
+{-
 bothTypesEqual :: (TTm,TTm) -> (Type -> Bool) ->  BinOp -> TEnv -> ErrorT GState Type 
 bothTypesEqual (e1,e2) pred op env  = do
     t1 <- typeCheck env e1
@@ -92,18 +132,23 @@ bothTypesEqual (e1,e2) pred op env  = do
         return t1
     else
         throwErrorLift ("TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show t1 ++ " and " ++ show t2)
+-}
+
+isPoly :: Type -> Bool
+isPoly = flip elem [TPoly, TCPoly]
+
+hasEuclid :: Type -> Bool
+hasEuclid = flip elem [TNum, TCNum, TPoly, TCPoly]
 
 hasOrd :: Type -> Bool
-hasOrd = flip elem [TNum, TBool]
+hasOrd = flip elem [TNum, TBool, TTop]
 
-{-
--}
-isNumType :: Type -> Bool
-isNumType e = e `elem` [TNum, TCNum, TPoly, TCPoly]
+--isNumType :: Type -> Bool
+--isNumType e = e `elem` [TNum, TCNum, TPoly, TCPoly]
 
-notFunctionType :: Type -> Bool
-notFunctionType e | e `elem` [TBool, TNum, TCNum, TPoly, TCPoly, TTop] = True
-                  | otherwise = False
+--notFunctionType :: Type -> Bool
+--notFunctionType e | e `elem` [TBool, TNum, TCNum, TPoly, TCPoly, TTop] = True
+--                  | otherwise = False
 
 bothConformTo :: Type -> (TTm,TTm) -> BinOp -> TEnv -> ErrorT GState Type
 bothConformTo t (e1,e2) op env  = do

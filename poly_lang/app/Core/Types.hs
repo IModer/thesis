@@ -86,8 +86,11 @@ data Complex a = !a :+ !a
 infix 6 :+
 
 instance (Show a, Eq a, Semiring a) => Show (Complex a) where
-    show (a :+ b) = if b == zero then show a 
-                                 else show a ++ "+" ++ show b ++ "i"
+    show (a :+ b) = case (a == zero, b == zero) of
+                        (True  , True ) -> "0"
+                        (False , True ) -> show a
+                        (True  , False) -> show b ++ "i"
+                        (False , False) -> show a ++ "+" ++ show b ++ "i"
 
 --https://hackage.haskell.org/package/semirings-0.6/docs/src/Data.Semiring.html#line-633
 instance Ring a => Semiring (Complex a) where
@@ -257,6 +260,12 @@ complexToComplexPoly :: Complex Frac -> Maybe (PolyMulti (Complex Frac))
 complexToComplexPoly cf = do
     zeros <- SU.fromList wzeros :: Maybe (SU.Vector 26 Word)
     return $ BoxP $ toMultiPoly $ V.singleton (zeros , cf)
+
+fracToComplex :: Frac -> Complex Frac
+fracToComplex = (:+ (0 %% 1))
+
+polyToCPoly :: PolyMulti Frac -> PolyMulti (Complex Frac)
+polyToCPoly (BoxP p) = let a = unMultiPoly p in let b = V.map (\(a,b) -> (a, b :+ (0 %% 1))) a in BoxP $ toMultiPoly b --((<$> (:+ 0)))
 
 -- This cannot be done, but isnt needed as we always cast up
 {-

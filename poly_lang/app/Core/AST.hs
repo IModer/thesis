@@ -14,10 +14,6 @@ type FieldOp = forall a . (Field a) => a -> a -> a -- Num and CNum
 type EuclideanOp = forall a . (Euclidean a, Ring a) => a -> a -> a -- Poly and CPoly
 type BoolOp = Bool -> Bool -> Bool
 
---type OpType = forall a . (Num a, Fractional a, Integral a) => a -> a -> a
---type NumOpType = Number -> Number -> Number
---type PolyOpType = CPolyMulti -> CPolyMulti -> CPolyMulti
-
 type Name = Text
 
 data TTm
@@ -32,7 +28,6 @@ data TTm
     | TBinFieldOp  BinOp FieldOp TTm TTm
     | TBinEucOp BinOp EuclideanOp TTm TTm
     | TPrefix PrefixOp TTm
---    deriving Show
 
 instance Show TTm where
     show t = show (loseType t)
@@ -131,7 +126,6 @@ data Tm
     | BinOpBool BinOp BoolOp Tm Tm
     | BinFieldOp  BinOp FieldOp Tm Tm
     | BinEucOp BinOp EuclideanOp Tm Tm
---    | BinOp BinOp OpType Tm Tm
 
 showTm :: Tm -> String
 showTm = \case
@@ -162,7 +156,6 @@ data Literal
     | LCPoly (PolyMulti (Complex Frac))
     | LBool Bool
     | LTop ()
---    deriving Show
 
 data Val
     = VVar Name
@@ -172,7 +165,6 @@ data Val
     | VPrefix PrefixOp Val
     | VBinPred BinOp PredType Val Val
     | VBinOpBool BinOp BoolOp Val Val
---    | VBinOp BinOp Val Val
     | VBinEucOp BinOp EuclideanOp Val Val
     | VBinFieldOp  BinOp FieldOp Val Val
 
@@ -190,3 +182,6 @@ pattern VPoly n = VLit (LPoly n)
 
 pattern VCPoly :: PolyMulti (Complex Frac) -> Val
 pattern VCPoly n = VLit (LCPoly n)
+
+pattern VTop :: Val
+pattern VTop = VLit (LTop ())
