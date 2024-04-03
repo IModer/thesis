@@ -5,9 +5,12 @@ var X
 def three := 3 -- comment
 
 let x := 2 in x
+
 (\x : Num . (\f : Num -> Num . f x))
 
 {-
 Multi 
 line comment
- -}
+-}
+
+def absNum := (\x : Num . if x >= 0 then x else (- x))

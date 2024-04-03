@@ -81,7 +81,8 @@ keywords = ["\\", "let", "in", "def"
             , "var" 
             ,"if", "then", "else"
             , "open", "close" , "Zmod"
-            , "i", "tt"]
+            ]
+--            , "i", "tt"
 
 keyword :: Text -> Bool
 keyword x = x `elem` keywords
@@ -102,17 +103,17 @@ pVariable :: Parser TTm
 pVariable = TVar <$> pIdent
 
 pLit :: Parser TTm
-pLit = pInt <|> pBool <|> pCompI <|> pTT
+pLit = choice [pInt, pBool, pCompI, pTT]
 
 pTT :: Parser TTm
 pTT = do
-    void $ symbol "tt"
+    pKeyword "tt"
     return $ TLit $ LTop ()
 
 pCompI :: Parser TTm
 pCompI = do
-    void $ symbol "i"
-    return $ TLit $ LCNum $ ((0 %% 1) :+ (1 %% 1)) -- i
+    pKeyword "i"
+    return $ TLit $ LCNum ((0 %% 1) :+ (1 %% 1)) -- i
 
 pInt :: Parser TTm
 pInt = do
@@ -190,7 +191,7 @@ pLam = do
     x <- pBind
     void $ char ':'
     t <- pType
-    void $ symbol "."
+    void $ char '.'
     u <- pTm
     return $ TLam x t u
 
@@ -208,20 +209,20 @@ pLet :: Parser TTm
 pLet = do
     pKeyword "let"
     x <- pBind
-    void $ symbol ":="
+    pKeyword ":="
     t <- pTm
-    void $ symbol "in"
+    pKeyword "in"
     u <- pTm
     return $ TLet x t u
 
 pBaseType :: Parser Type
 pBaseType = choice
-    [ symbol "Num"  $> TNum
+    [ symbol "Num"   $> TNum
     , symbol "CNum"  $> TCNum
     , symbol "Poly"  $> TPoly
-    , symbol "CPoly"  $> TCPoly
-    , symbol "Bool" $> TBool
-    , symbol "Top"  $> TTop
+    , symbol "CPoly" $> TCPoly
+    , symbol "Bool"  $> TBool
+    , symbol "Top"   $> TTop
     , parens pType
     ]
 
@@ -233,11 +234,11 @@ pType = makeExprParser pBaseType operatorTableT
 
 pTm :: Parser TTm
 pTm  = try (choice
-    [ {-dbg "expr"   -} pExpr
-    , {-dbg "lambda" -} pLam
-    , {-dbg "letbind"-} pLet
-    , {-dbg "if bind"-} pIfThenElse
-    , {-dbg "parens "-} parens pTm
+    [ {-dbg "expr"    -} pExpr
+    , {-dbg "lambda"  -} pLam
+    , {-dbg "letbind" -} pLet
+    , {-dbg "if bind" -} pIfThenElse
+    , {-dbg "parens " -} parens pTm
     ] <?> "a valid term")
 
 data CommandLineCommand

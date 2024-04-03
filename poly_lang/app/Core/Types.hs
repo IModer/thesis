@@ -13,6 +13,7 @@ import Prelude hiding ((*), (+), negate, (-), quot, rem, lcm, gcd)
 
 -- Poly
 import Data.Poly.Multi.Semiring
+--import Data.Poly.Internal.Multi.Field
 
 -- Show Poly
 import Data.List (intersperse)
@@ -213,6 +214,8 @@ instance GcdDomain (PolyMulti Frac) where
     lcm     (BoxP x) (BoxP y) = BoxP $ x `lcm` y
     coprime (BoxP x) (BoxP y) = x `coprime` y
 
+{-
+-}
 instance Euclidean (Poly26 Frac) where
     degree = degree 
     quot = quot
