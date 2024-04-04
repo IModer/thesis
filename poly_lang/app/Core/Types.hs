@@ -5,6 +5,8 @@ module Core.Types where
 import Lib
 
 import Data.Maybe (fromJust)
+import Data.Ord   (comparing)
+import GHC.Natural (wordToNatural)
 
 import Data.Semiring
 import Data.Euclidean
@@ -20,6 +22,7 @@ import Data.List (intersperse)
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed.Sized as SU
 import qualified Data.Vector as V
+import qualified Data.Vector.Unboxed as VU
 
 import Data.Finite
 
@@ -140,6 +143,9 @@ type Poly26 a = VMultiPoly 26 a
 newtype PolyMulti a = BoxP (Poly26 a)
     deriving Eq
 
+unPolyMulti :: PolyMulti a -> Poly26 a
+unPolyMulti (BoxP p) = p
+
 vars :: [Char]
 vars = ['A'..'Z']
 
@@ -166,7 +172,7 @@ instance Show a => Show (PolyMulti a) where
                 showPower i n = showString (showVar n) . showString ("^" ++ show i)
                 -- We Show Vars differently
                 showVar :: Finite n -> String
-                showVar k = maybe "" (:"") $ lookup i (zip [1..] vars)
+                showVar k = maybe "" (:"") $ lookup (i+1) (zip [1..] vars)
                     where
                         i = getFinite k
 
@@ -214,12 +220,12 @@ instance GcdDomain (PolyMulti Frac) where
     lcm     (BoxP x) (BoxP y) = BoxP $ x `lcm` y
     coprime (BoxP x) (BoxP y) = x `coprime` y
 
-{-
--}
+
 instance Euclidean (Poly26 Frac) where
-    degree = degree 
-    quot = quot
-    rem  = rem
+    degree p = if getPolyNumOfVariables (BoxP p) == 1 then wordToNatural $ getPolyDegree $ BoxP p
+                else undefined
+    quot    = undefined
+    rem     = undefined
 
 instance Euclidean (PolyMulti Frac) where
     degree (BoxP x)          = degree x
@@ -237,7 +243,7 @@ stringToComplexPoly s =
         then Nothing -- not a single letter like `var XY`
         else do
             s' <- lookup (head s) (zip vars [1..])
-            ls <- (SU.fromList $ replaceAtIndex s' (1 :: Word) wzeros :: Maybe (SU.Vector 26 Word))
+            ls <- (SU.fromList $ replaceAtIndex (s'-1) (1 :: Word) wzeros :: Maybe (SU.Vector 26 Word))
             return $ BoxP (monomial ls ((1 %% 1) :+ (0 %% 1)) :: Poly26 (Complex Frac))
 
 stringToPoly :: String -> Maybe (PolyMulti Frac)
@@ -246,7 +252,7 @@ stringToPoly s =
         then Nothing -- not a single letter like `var XY`
         else do
             s' <- lookup (head s) (zip vars [1..])
-            ls <- (SU.fromList $ replaceAtIndex s' (1 :: Word) wzeros :: Maybe (SU.Vector 26 Word))
+            ls <- (SU.fromList $ replaceAtIndex (s'-1) (1 :: Word) wzeros :: Maybe (SU.Vector 26 Word))
             return $ BoxP (monomial ls (1 %% 1) :: Poly26 Frac)
 
 fracToComplexPoly :: Frac -> Maybe (PolyMulti (Complex Frac))
@@ -268,7 +274,27 @@ fracToComplex :: Frac -> Complex Frac
 fracToComplex = (:+ (0 %% 1))
 
 polyToCPoly :: PolyMulti Frac -> PolyMulti (Complex Frac)
-polyToCPoly (BoxP p) = let a = unMultiPoly p in let b = V.map (\(a,b) -> (a, b :+ (0 %% 1))) a in BoxP $ toMultiPoly b --((<$> (:+ 0)))
+polyToCPoly (BoxP p) = let a = unMultiPoly p in
+                        let b = V.map (\(a,b) -> (a, b :+ (0 %% 1))) a in 
+                            BoxP $ toMultiPoly b
+
+getPolyDegree :: PolyMulti a -> Word
+getPolyDegree (BoxP p) = let a = unMultiPoly p in 
+                            V.maximum $ V.map (SU.maximum . fst) a
+
+getPolyNumOfVariables :: PolyMulti a -> Int
+getPolyNumOfVariables (BoxP p) = let a = unMultiPoly p in
+                                    let usa = V.map (V.convert . SU.fromSized . fst) a in
+                                        V.length $ V.filter id $ V.foldl1 (V.zipWith (||)) $ V.map (V.map (>0)) usa
+
+testPoly :: PolyMulti Frac
+testPoly =  let Just x = stringToPoly "X" in
+            let Just y = stringToPoly "Y" in
+            let Just z = stringToPoly "Z" in
+            let Just four = fracToPoly (4 %% 1) in
+            let Just tenthird = fracToPoly (10 %% 3) in
+                --tenthird * x * x * x * z * z + four * {-y*-} x + x + four
+                x * x + tenthird * x + four
 
 -- This cannot be done, but isnt needed as we always cast up
 {-
