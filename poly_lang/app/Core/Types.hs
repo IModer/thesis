@@ -4,21 +4,24 @@ module Core.Types where
 
 import Lib
 
-import Data.Maybe (fromJust)
+import Control.Exception
+
+import Data.Maybe (fromJust, fromMaybe)
 import Data.Ord   (comparing)
 import GHC.Natural (wordToNatural)
 
-import Data.Semiring
+import Data.Semiring hiding (fromIntegral)
 import Data.Euclidean
 import Data.Ratio (numerator, denominator, (%))
 import Prelude hiding ((*), (+), negate, (-), quot, rem, lcm, gcd)
 
 -- Poly
 import Data.Poly.Multi.Semiring
+import qualified Data.Poly.Semiring as PS
 --import Data.Poly.Internal.Multi.Field
 
 -- Show Poly
-import Data.List (intersperse)
+import Data.List (intersperse, maximumBy)
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed.Sized as SU
 import qualified Data.Vector as V
@@ -138,6 +141,8 @@ instance Field a => Field (Complex a)
 -- MultiPoly needs to know at compile time how long is it gonna be
 -- Edit: it could be solved by some magic but its beyond the scope of this project
 
+type PolyMono = PS.VPoly
+
 type Poly26 a = VMultiPoly 26 a
 
 newtype PolyMulti a = BoxP (Poly26 a)
@@ -220,17 +225,33 @@ instance GcdDomain (PolyMulti Frac) where
     lcm     (BoxP x) (BoxP y) = BoxP $ x `lcm` y
     coprime (BoxP x) (BoxP y) = x `coprime` y
 
-
+{-
 instance Euclidean (Poly26 Frac) where
-    degree p = if getPolyNumOfVariables (BoxP p) == 1 then wordToNatural $ getPolyDegree $ BoxP p
+    degree p = if getPolyNumOfVariables (BoxP p) == 1 
+                then wordToNatural $ getPolyDegree $ BoxP p
                 else undefined
-    quot    = undefined
+    quot p q = if getPolyNumOfVariables (BoxP p) == 1 && getPolyNumOfVariables (BoxP q) == 1
+                then fromMonoPoly (quot (toMonoPoly $ BoxP p) (toMonoPoly $ BoxP q))
+                else undefined
     rem     = undefined
+-}
 
 instance Euclidean (PolyMulti Frac) where
-    degree (BoxP x)          = degree x
-    quot   (BoxP x) (BoxP y) = BoxP (x `quot` y)
-    rem    (BoxP x) (BoxP y) = BoxP (x `rem` y)
+    degree p = if getPolyNumOfVariables p == 1 
+                then wordToNatural $ getPolyDegree p
+                else throw CannotCallWithMultiplesVariable
+    quot p q = if getPolyNumOfVariables p == 1 && getPolyNumOfVariables q == 1 && i == j
+                then fromMonoPoly (quot p' q') i
+                else throw CannotCallWithMultiplesVariable
+        where
+            (p',i) = toMonoPoly p
+            (q',j) = toMonoPoly q
+    rem p q  = if getPolyNumOfVariables p == 1 && getPolyNumOfVariables q == 1 && i == j
+                then fromMonoPoly (rem p' q') i
+                else throw CannotCallWithMultiplesVariable
+        where
+            (p',i) = toMonoPoly p
+            (q',j) = toMonoPoly q
 
 wzeros :: [Word]
 wzeros = replicate 26 (0 :: Word)
@@ -287,6 +308,33 @@ getPolyNumOfVariables (BoxP p) = let a = unMultiPoly p in
                                     let usa = V.map (V.convert . SU.fromSized . fst) a in
                                         V.length $ V.filter id $ V.foldl1 (V.zipWith (||)) $ V.map (V.map (>0)) usa
 
+ifMonoWhichVar :: PolyMulti a -> Int
+ifMonoWhichVar (BoxP p) = let a = unMultiPoly p in
+                            let usa = V.map (V.convert . SU.fromSized . fst) a in
+                            V.maximum $  V.map (maybe 0 id . V.elemIndex True) $ V.map (V.map (>0)) usa
+
+{-
+toMonoPoly :: (Eq a, Semiring a) => PolyMulti a -> (PolyMono a , Int)
+toMonoPoly (BoxP p) = let a = unMultiPoly p in
+                        let b = V.map snd a in
+                        let i = ifMonoWhichVar $ BoxP p in
+                            (PS.toPoly b , i)
+-}
+
+toMonoPoly :: (Eq a, Semiring a) => PolyMulti a -> (PolyMono a, Int)
+toMonoPoly (BoxP p) =  let a = unMultiPoly p in
+                        let t = V.toList $ V.zip (V.map (fromIntegral . SU.sum . fst) a) (V.map snd a)  in
+                        let m = fst $ maximumBy (comparing fst) t in
+                        let c = [fromMaybe zero $ lookup i t | i <- [0..m] ] in --lookup ((fst i) :: Int) t
+                        let i = ifMonoWhichVar $ BoxP p in
+                        (PS.toPoly $ V.fromList c , i)
+
+fromMonoPoly :: (Eq a, Semiring a) => PolyMono a -> Int -> PolyMulti a
+fromMonoPoly p i = let a = PS.unPoly p in
+                        let ls j = unsafe (SU.fromList $ replaceAtIndex i (j :: Word) wzeros :: Maybe (SU.Vector 26 Word)) in
+                        let b = V.map (\(x, n) -> (ls n,x)) $ V.zip a (V.fromList [0..(fromIntegral $ V.length a)]) in
+                        BoxP $ toMultiPoly b
+
 testPoly :: PolyMulti Frac
 testPoly =  let Just x = stringToPoly "X" in
             let Just y = stringToPoly "Y" in
@@ -294,8 +342,28 @@ testPoly =  let Just x = stringToPoly "X" in
             let Just four = fracToPoly (4 %% 1) in
             let Just tenthird = fracToPoly (10 %% 3) in
                 --tenthird * x * x * x * z * z + four * {-y*-} x + x + four
-                x * x + tenthird * x + four
+                x * x + tenthird * x + four + y
 
+testPoly2 :: PolyMulti Frac
+testPoly2 =  let Just x = stringToPoly "X" in
+            let Just y = stringToPoly "Y" in
+            let Just z = stringToPoly "Z" in
+            let Just four = fracToPoly (4 %% 1) in
+            let Just tenthird = fracToPoly (10 %% 3) in
+                --tenthird * x * x * x * z * z + four * {-y*-} x + x + four
+                four * x * x * x * x * x + four * x * four * x + x + four
+
+data MyException = CannotCallWithMultiplesVariable
+    deriving (Show, Eq)
+
+instance Exception MyException
+
+test :: IO()
+test = do 
+    e <- (try (evaluate (testPoly `rem` testPoly)) :: IO(Either MyException (PolyMulti Frac)))
+    case e of
+        Left a -> putStrLn $ show a
+        Right a -> putStrLn $ show a
 -- This cannot be done, but isnt needed as we always cast up
 {-
 complexToPoly :: Complex Frac -> Maybe (PolyMulti Frac)
