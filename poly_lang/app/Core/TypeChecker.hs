@@ -82,10 +82,6 @@ typeCheck env = \case
                 (_      , TCPoly) -> return TCPoly
                 (TPoly  , TCNum ) -> return TCPoly
                 (TCNum  , TPoly ) -> return TCPoly
-                {-
-                (TPoly  , TCNum ) -> throwErrorLift $ cannotBeCalledWithError t1 t2 op
-                (TCNum  , TPoly ) -> throwErrorLift $ cannotBeCalledWithError t1 t2 op
-                -}
                 (TPoly  , TPoly ) -> return TPoly
                 (TPoly  , TNum  ) -> return TPoly
                 (TNum   , TPoly ) -> return TPoly

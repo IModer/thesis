@@ -99,20 +99,20 @@ evalTerm env' = \case
             (VCNum  i, VCNum  j) -> VCNum  (i `f` j)
             (VNum   i, VNum   j) -> VNum   (i `f` j)
             -- Poly & CNum -> CPoly
-            (VPoly i, VCNum  j ) -> VCPoly (polyToCPoly i `f` (unsafe $ complexToComplexPoly j))
-            (VCNum i, VPoly  j ) -> VCPoly ((unsafe $ complexToComplexPoly i) `f` polyToCPoly j)
+            (VPoly i, VCNum  j ) -> VCPoly (polyToCPoly i `f` unsafe (complexToComplexPoly j))
+            (VCNum i, VPoly  j ) -> VCPoly (unsafe (complexToComplexPoly i) `f` polyToCPoly j)
             -- CPoly & Poly -> CPoly
             (VCPoly i, VPoly  j) -> VCPoly (i `f` polyToCPoly j)
             (VPoly  i, VCPoly j) -> VCPoly (polyToCPoly i `f` j)
             -- CPoly & CNum -> CPoly
-            (VCPoly i, VCNum  j) -> VCPoly (i `f` (unsafe $ complexToComplexPoly j))
-            (VCNum  i, VCPoly j) -> VCPoly ((unsafe $ complexToComplexPoly i) `f` j)
+            (VCPoly i, VCNum  j) -> VCPoly (i `f` unsafe (complexToComplexPoly j))
+            (VCNum  i, VCPoly j) -> VCPoly (unsafe (complexToComplexPoly i) `f` j)
             -- CPoly & Num -> CPoly
-            (VCPoly i, VNum   j) -> VCPoly (i `f` (unsafe $ fracToComplexPoly j))
-            (VNum   i, VCPoly j) -> VCPoly ((unsafe $ fracToComplexPoly i) `f` j)
+            (VCPoly i, VNum   j) -> VCPoly (i `f` unsafe (fracToComplexPoly j))
+            (VNum   i, VCPoly j) -> VCPoly (unsafe (fracToComplexPoly i) `f` j)
             -- Poly & Num -> Poly
-            (VPoly  i, VNum   j) -> VPoly  (i `f` (unsafe $ fracToPoly j))
-            (VNum   i, VPoly  j) -> VPoly  ((unsafe $ fracToPoly i) `f` j)
+            (VPoly  i, VNum   j) -> VPoly  (i `f` unsafe (fracToPoly j))
+            (VNum   i, VPoly  j) -> VPoly  (unsafe (fracToPoly i) `f` j)
             -- CNum & Num -> CNum
             (VNum   i, VCNum  j) -> VCNum  (fracToComplex i `f` j)
             (VCNum  i, VNum   j) -> VCNum  (i `f` fracToComplex j)

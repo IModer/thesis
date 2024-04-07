@@ -117,7 +117,7 @@ handleErrorString :: ErrorT GState String -> GStateT IO String
 handleErrorString e = 
     let a = runExceptT e in
     mapStateT (\i -> 
-        let (e_s, env) = runIdentity i in 
+        let (e_s, env) = runIdentity i in
         return (eitherId e_s, env)) a
 
 handleTopDef :: TopDef -> ErrorT GState String

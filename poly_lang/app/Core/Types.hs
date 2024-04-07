@@ -76,10 +76,18 @@ instance GcdDomain Frac where
     coprime                = const $ const True
 
 instance Euclidean Frac where
+    degree                  = error "frac degree"  -- this isnt used anywhere
+    quotRem x       y       = (quot x y,rem x y)
+    quot    (Box x) (Box y) = floor (x / y) %% 1
+    rem     (Box x) (Box y) = Box x - (Box y * floor (x / y) %% 1)
+
+{-
+instance Euclidean Frac where
     degree                  = const 0
     quotRem (Box x) (Box y) = (Box (x / y), Box 0)
     quot    (Box x) (Box y) = Box (x / y)
     rem                     = const $ const $ Box 0
+-}
 
 instance Field Frac
 {--}
@@ -87,7 +95,7 @@ instance Field Frac
 -- Complex is a custom Data.Complex so we can have custom show 
 -- and so we dont have RealFloat (https://hackage.haskell.org/package/complex-generic would do this but it isnt maintained) 
 
-data Complex a = !a :+ !a 
+data Complex a = !a :+ !a
     deriving (Eq)
 
 infix 6 :+
@@ -123,13 +131,17 @@ instance Field a => GcdDomain (Complex a) where
     lcm        = const $ const one
     coprime    = const $ const True
 
-instance Field a => Euclidean (Complex a) where
+instance (Field a, Eq a) => Euclidean (Complex a) where
     degree      = const 0
-    quotRem x y = (quot x y, zero)
-    quot x y    = x `times` conjQuotAbs y
-    rem         = const $ const zero
+    quotRem x y = (quot x y, rem x y)
+    quot z@(x :+ y) w@(x' :+ y') = if y * y' == zero
+                                    then x `quot` x' :+ zero
+                                    else z `times` conjQuotAbs w
+    rem  (x :+ y) (x' :+ y') = if y * y' == zero
+                                then x `rem` x' :+ zero
+                                else zero
 
-instance Field a => Field (Complex a)
+instance (Field a, Eq a) => Field (Complex a)
 
 -- Multivariate polynomials, boxed so we can have nicer show
 
@@ -199,15 +211,16 @@ instance GcdDomain (PolyMulti (Complex Frac)) where
     lcm     (BoxP x) (BoxP y) = BoxP $ x `lcm` y
     coprime (BoxP x) (BoxP y) = x `coprime` y
 
-instance Euclidean (Poly26 (Complex Frac)) where
-    degree = degree 
-    quot = quot
-    rem  = rem
-
 instance Euclidean (PolyMulti (Complex Frac)) where
-    degree (BoxP x)          = degree x
-    quot   (BoxP x) (BoxP y) = BoxP (x `quot` y)
-    rem    (BoxP x) (BoxP y) = BoxP (x `rem` y)
+    degree p = wordToNatural $ getPolyDegree p
+    quot p q = fromMonoPoly (quot p' q') i
+        where
+            (p',i) = toMonoPoly p
+            (q',j) = toMonoPoly q
+    rem p q  = fromMonoPoly (rem p' q') i
+        where
+            (p',i) = toMonoPoly p
+            (q',j) = toMonoPoly q
 
 instance Semiring (PolyMulti Frac) where
     zero = unsafe $ fracToPoly (0 %% 1)
@@ -225,30 +238,14 @@ instance GcdDomain (PolyMulti Frac) where
     lcm     (BoxP x) (BoxP y) = BoxP $ x `lcm` y
     coprime (BoxP x) (BoxP y) = x `coprime` y
 
-{-
-instance Euclidean (Poly26 Frac) where
-    degree p = if getPolyNumOfVariables (BoxP p) == 1 
-                then wordToNatural $ getPolyDegree $ BoxP p
-                else undefined
-    quot p q = if getPolyNumOfVariables (BoxP p) == 1 && getPolyNumOfVariables (BoxP q) == 1
-                then fromMonoPoly (quot (toMonoPoly $ BoxP p) (toMonoPoly $ BoxP q))
-                else undefined
-    rem     = undefined
--}
-
+-- This only works if we only have 1 variable
 instance Euclidean (PolyMulti Frac) where
-    degree p = if getPolyNumOfVariables p == 1 
-                then wordToNatural $ getPolyDegree p
-                else throw CannotCallWithMultiplesVariable
-    quot p q = if getPolyNumOfVariables p == 1 && getPolyNumOfVariables q == 1 && i == j
-                then fromMonoPoly (quot p' q') i
-                else throw CannotCallWithMultiplesVariable
+    degree p = wordToNatural $ getPolyDegree p
+    quot p q = fromMonoPoly (quot p' q') i
         where
             (p',i) = toMonoPoly p
             (q',j) = toMonoPoly q
-    rem p q  = if getPolyNumOfVariables p == 1 && getPolyNumOfVariables q == 1 && i == j
-                then fromMonoPoly (rem p' q') i
-                else throw CannotCallWithMultiplesVariable
+    rem p q  = fromMonoPoly (rem p' q') i
         where
             (p',i) = toMonoPoly p
             (q',j) = toMonoPoly q
@@ -300,7 +297,7 @@ polyToCPoly (BoxP p) = let a = unMultiPoly p in
                             BoxP $ toMultiPoly b
 
 getPolyDegree :: PolyMulti a -> Word
-getPolyDegree (BoxP p) = let a = unMultiPoly p in 
+getPolyDegree (BoxP p) = let a = unMultiPoly p in
                             V.maximum $ V.map (SU.maximum . fst) a
 
 getPolyNumOfVariables :: PolyMulti a -> Int
@@ -312,14 +309,6 @@ ifMonoWhichVar :: PolyMulti a -> Int
 ifMonoWhichVar (BoxP p) = let a = unMultiPoly p in
                             let usa = V.map (V.convert . SU.fromSized . fst) a in
                             V.maximum $  V.map (maybe 0 id . V.elemIndex True) $ V.map (V.map (>0)) usa
-
-{-
-toMonoPoly :: (Eq a, Semiring a) => PolyMulti a -> (PolyMono a , Int)
-toMonoPoly (BoxP p) = let a = unMultiPoly p in
-                        let b = V.map snd a in
-                        let i = ifMonoWhichVar $ BoxP p in
-                            (PS.toPoly b , i)
--}
 
 toMonoPoly :: (Eq a, Semiring a) => PolyMulti a -> (PolyMono a, Int)
 toMonoPoly (BoxP p) =  let a = unMultiPoly p in
@@ -353,17 +342,18 @@ testPoly2 =  let Just x = stringToPoly "X" in
                 --tenthird * x * x * x * z * z + four * {-y*-} x + x + four
                 four * x * x * x * x * x + four * x * four * x + x + four
 
-data MyException = CannotCallWithMultiplesVariable
+newtype EuclidException = EucExc String
     deriving (Show, Eq)
 
-instance Exception MyException
+instance Exception EuclidException where
+    displayException (EucExc s) = s
 
 test :: IO()
 test = do 
-    e <- (try (evaluate (testPoly `rem` testPoly)) :: IO(Either MyException (PolyMulti Frac)))
+    e <- (try (evaluate (testPoly `rem` testPoly2)) :: IO(Either EuclidException (PolyMulti Frac)))
     case e of
-        Left a -> putStrLn $ show a
-        Right a -> putStrLn $ show a
+        Left a -> print a
+        Right a -> print a
 -- This cannot be done, but isnt needed as we always cast up
 {-
 complexToPoly :: Complex Frac -> Maybe (PolyMulti Frac)
