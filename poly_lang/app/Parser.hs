@@ -2,7 +2,7 @@
 
 module Parser where
 
-import Core.AST hiding (Prefix)
+import Core.AST
 import Core.Types
 import Data.Euclidean
 import Data.Semiring
@@ -113,12 +113,12 @@ pTT = do
 pCompI :: Parser TTm
 pCompI = do
     pKeyword "i"
-    return $ TLit $ LCNum ((0 %% 1) :+ (1 %% 1)) -- i
+    return $ TLit $ LCNum (zero :+ one) -- i
 
 pInt :: Parser TTm
 pInt = do
     i <- lexeme L.decimal
-    return $ TLit $ LNum $ i %% 1
+    return $ TLit $ LCNum (i %% 1 :+ zero) 
 
 pBool :: Parser TTm
 pBool = choice
@@ -138,15 +138,15 @@ operatorTable =
     , prefix  "derivative" (TPrefix Der   )
     ] ,
     [
-      binaryL "*"   (TBinEucOp Times  (*)  )
+      binaryL "*"   (TBinRingOp Times (*)  )
     , binaryL "/"   (TBinFieldOp Div  ((unsafe .) . divide)  )
     , binaryL "div" (TBinEucOp IntDiv quot )
     , binaryL "mod" (TBinEucOp Mod    rem  )
     , binaryL "=="  (TBinPred Eq      (==) )
     ] ,
     [
-      binaryL "+"   (TBinEucOp Plus   (+)  )
-    , binaryL "-"   (TBinEucOp Minus  (-)  )
+      binaryL "+"   (TBinRingOp Plus   (+) )
+    , binaryL "-"   (TBinRingOp Minus  (-) )
     , binaryL "|"   (TBinOpBool Or    (||) )
     , binaryL "&"   (TBinOpBool And   (&&) )
 --    , binaryL "^"   (TBinOp Pow   (^)  )

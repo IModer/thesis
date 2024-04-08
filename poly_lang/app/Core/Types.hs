@@ -33,7 +33,6 @@ import Data.Finite
 
 --type Frac = WrappedFractional Rational
 
-{--}
 newtype Frac = Box Rational
     deriving (Eq)
 
@@ -97,6 +96,17 @@ instance Field Frac
 
 data Complex a = !a :+ !a
     deriving (Eq)
+
+real :: Complex a -> a
+real (x :+ y) = x
+
+imag :: Complex a -> a
+imag (x :+ y) = y
+
+instance (Ord a, Semiring a, Eq a) => Ord (Complex a) where
+    compare (x :+ y) (x' :+ y') = if y * y' == zero 
+                                    then compare x x'
+                                    else EQ
 
 infix 6 :+
 
@@ -331,7 +341,8 @@ testPoly =  let Just x = stringToPoly "X" in
             let Just four = fracToPoly (4 %% 1) in
             let Just tenthird = fracToPoly (10 %% 3) in
                 --tenthird * x * x * x * z * z + four * {-y*-} x + x + four
-                x * x + tenthird * x + four + y
+                --x * x + tenthird * x + four + y
+                x * y
 
 testPoly2 :: PolyMulti Frac
 testPoly2 =  let Just x = stringToPoly "X" in

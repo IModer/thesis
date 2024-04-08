@@ -2,7 +2,7 @@
 
 module Core.TypeChecker where
 
-import Control.Monad.Except (liftEither)
+import Control.Monad.Except (liftEither, throwError)
 import Control.Monad.State (lift, get)
 
 import Core.AST
@@ -13,9 +13,11 @@ import Data.List (intercalate)
 
 typeCheck :: TEnv -> TTm -> ErrorT GState Type
 typeCheck env = \case
+{-
     TLit (LNum  _) -> return TNum
-    TLit (LCNum _) -> return TCNum
     TLit (LPoly _) -> return TPoly
+-}
+    TLit (LCNum _) -> return TCNum
     TLit (LCPoly _)-> return TCPoly
     TLit (LBool _) -> return TBool
     TLit (LTop _)  -> return TTop
@@ -25,7 +27,7 @@ typeCheck env = \case
             Just a  -> return a
             Nothing -> case lookup x env of
                     Just b  -> return b
-                    Nothing -> throwErrorLift 
+                    Nothing -> throwError
                         ("Cannot find variable : " ++ T.unpack x)
     TLet x e u     -> do
         t <- typeCheck env e
@@ -62,33 +64,26 @@ typeCheck env = \case
         t1 <- typeCheck env e1
         t2 <- typeCheck env e2
         case (t1, t2) of
-            (TNum  , TNum ) -> return TNum
-            (TNum  , TCNum) -> return TCNum
-            (TCNum , TNum ) -> return TCNum
             (TCNum , TCNum) -> return TCNum
             (a     , b    ) -> throwErrorLift $ cannotBeCalledWithError t1 t2 op
+    TBinRingOp op f e1 e2 -> do
+        t1 <- typeCheck env e1
+        t2 <- typeCheck env e2
+        if hasEuclid t1 && hasEuclid t2
+            then case (t1, t2) of
+                (TCPoly , _     ) -> return TCPoly
+                (_      , TCPoly) -> return TCPoly
+                (TCNum  , TCNum ) -> return TCNum
+            else throwErrorLift $ cannotBeCalledWithError t1 t2 op
+    -- az op csak Div, Mod
     TBinEucOp op f e1 e2 -> do
         t1 <- typeCheck env e1
         t2 <- typeCheck env e2
         if hasEuclid t1 && hasEuclid t2
-            {- We can only move along this diagram :
-                Num  ----> CNum
-                 |           |
-                 |           |
-                 V           V
-                Poly ----> CPoly   -}
             then case (t1, t2) of
                 (TCPoly , _     ) -> return TCPoly
                 (_      , TCPoly) -> return TCPoly
-                (TPoly  , TCNum ) -> return TCPoly
-                (TCNum  , TPoly ) -> return TCPoly
-                (TPoly  , TPoly ) -> return TPoly
-                (TPoly  , TNum  ) -> return TPoly
-                (TNum   , TPoly ) -> return TPoly
                 (TCNum  , TCNum ) -> return TCNum
-                (TCNum  , TNum  ) -> return TCNum
-                (TNum   , TCNum ) -> return TCNum
-                (TNum   , TNum  ) -> return TNum
             else throwErrorLift $ cannotBeCalledWithError t1 t2 op
     -- It might be worth it to abstract out Poly -> Poly ops
     TPrefix op e    -> do
@@ -130,14 +125,23 @@ bothTypesEqual (e1,e2) pred op env  = do
         throwErrorLift ("TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show t1 ++ " and " ++ show t2)
 -}
 
+--isPoly :: Type -> Bool
+--isPoly = flip elem [TPoly, TCPoly]
+
 isPoly :: Type -> Bool
-isPoly = flip elem [TPoly, TCPoly]
+isPoly = (== TCPoly)
+
+--hasEuclid :: Type -> Bool
+--hasEuclid = flip elem [TNum, TCNum, TPoly, TCPoly]
+
+hasRing :: Type -> Bool
+hasRing = flip elem [TCNum, TCPoly]
 
 hasEuclid :: Type -> Bool
-hasEuclid = flip elem [TNum, TCNum, TPoly, TCPoly]
+hasEuclid = flip elem [TCNum, TCPoly]
 
 hasOrd :: Type -> Bool
-hasOrd = flip elem [TNum, TBool, TTop]
+hasOrd = flip elem [TCNum, TBool, TTop]
 
 --isNumType :: Type -> Bool
 --isNumType e = e `elem` [TNum, TCNum, TPoly, TCPoly]

@@ -3,7 +3,7 @@ module Core.Classes where
 import Control.Monad.State
 import Control.Monad.Except
 import Core.AST
-import Ring
+import Core.Types
 import GHC.TypeNats
 
 -- Error type for typechecking errors
@@ -17,9 +17,8 @@ throwErrorLift = liftEither . throwError
 -- Custome state for type context and value context
 -- As long as the getter and setter functions are used 
 -- this is can be considered as abstract
-type TEnv = [(Name, Type)]
-type VEnv  = [(Name, Val)]
-
+--type TEnv = [(Name, Type)]
+--type VEnv  = [(Name, Val)]
 
 insertType :: (Name, Type) -> GEnv -> GEnv
 insertType xt genv = genv { typeEnv =  xt : typeEnv genv}
@@ -33,16 +32,18 @@ getType = typeEnv
 getVal :: GEnv -> VEnv
 getVal = nameEnv
 
-getZmodN :: GEnv -> Maybe Number
+getZmodN :: GEnv -> Maybe Frac
 getZmodN = zmodn
 
-getZmodF :: GEnv -> Maybe CPolyMulti
+getZmodF :: GEnv -> Maybe (PolyMulti Frac)
 getZmodF = zmodf
 
+{-
 data GEnv = GEnv { typeEnv :: TEnv
                  , nameEnv :: VEnv
-                 , zmodn :: Maybe Number
-                 , zmodf :: Maybe CPolyMulti }
+                 , zmodn :: Maybe Frac
+                 , zmodf :: Maybe (PolyMulti Frac) }
+-}
 
 emptyEnv :: GEnv
 emptyEnv = GEnv [] [] Nothing Nothing

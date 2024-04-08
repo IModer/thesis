@@ -124,15 +124,16 @@ handleTopDef :: TopDef -> ErrorT GState String
 handleTopDef def = case def of
     LetDef name ttm -> do
         t <- typeCheck [] ttm
-        val <- lift $ evalTerm [] (loseType ttm)
+        --val <- lift $ evalTerm [] ttm
+        val <- evalTerm [] ttm
         modify $ insertType (name, t)
         modify $ insertVal (name, val)
         return ("saved " ++ unpack name ++ " : " ++ show t)
     VarDef name    -> do
-        modify $ insertType (name, TPoly)
-        case stringToPoly $ unpack name of
+        modify $ insertType (name, TCPoly)
+        case stringToComplexPoly $ unpack name of
             Just p -> do
-                modify $ insertVal (name, VPoly p)
+                modify $ insertVal (name, VCPoly p)
                 return $ unpack name ++ " is now a polinomial variable"
             Nothing -> throwErrorLift (unpack name ++ " cannot be made a polinomial variable")
     OpenDef a -> undefined

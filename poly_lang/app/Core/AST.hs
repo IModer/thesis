@@ -7,14 +7,28 @@ import Core.Types
 import Data.Euclidean
 import Data.Semiring
 import Data.Text hiding (unwords)
+import Control.Monad.State
+import Control.Monad.Except
+--import Ring
 
 type PredType = forall a . Ord a => a -> a -> Bool
 
 type FieldOp = forall a . (Field a) => a -> a -> a -- Num and CNum
 type EuclideanOp = forall a . (Euclidean a, Ring a) => a -> a -> a -- Poly and CPoly
+type RingOp = forall a . (Ring a) => a -> a -> a
 type BoolOp = Bool -> Bool -> Bool
 
 type Name = Text
+
+type TEnv = [(Name, Type)]
+type VEnv  = [(Name, Val)]
+
+--GEnv
+data GEnv = GEnv { typeEnv :: TEnv
+                 , nameEnv :: VEnv
+                 , zmodn :: Maybe Frac
+                 , zmodf :: Maybe (PolyMulti Frac) }
+
 
 data TTm
     = TVar    Name
@@ -27,24 +41,8 @@ data TTm
     | TBinOpBool BinOp BoolOp TTm TTm
     | TBinFieldOp  BinOp FieldOp TTm TTm
     | TBinEucOp BinOp EuclideanOp TTm TTm
+    | TBinRingOp BinOp RingOp TTm TTm
     | TPrefix PrefixOp TTm
-
-instance Show TTm where
-    show t = show (loseType t)
-
-loseType :: TTm -> Tm
-loseType = \case
-    TVar n        -> Var n
-    TLam n _ e    -> Lam n (loseType e)
-    TApp t u      -> App (loseType t) (loseType u)
-    TLet n t u    -> Let n (loseType t) (loseType u)
-    TLit l        -> Lit l
-    TIfThenElse b t u -> IfThenElse (loseType b) (loseType t) (loseType u)
-    TPrefix     op t  -> Prefix op (loseType t)
-    TBinPred    op f t u -> BinPred op f (loseType t) (loseType u) 
-    TBinOpBool  op f t u -> BinOpBool op f (loseType t) (loseType u)
-    TBinFieldOp   op f t u -> BinFieldOp op f (loseType t) (loseType u)
-    TBinEucOp  op f t u -> BinEucOp op f (loseType t) (loseType u)
 
 data PrefixOp
     = Neg
@@ -106,7 +104,7 @@ data Type
 
 instance Show Type where
     show = \case
-        TArr t u -> unwords [show t, " -> " ,show u]
+        TArr t u -> unwords ["(",show t, " -> " ,show u,")"]
         TCNum    -> "Complex Number"
         TNum     -> "Number"
         TBool    -> "Bool"
@@ -114,45 +112,31 @@ instance Show Type where
         TPoly    -> "Poly"
         TTop     -> "Top"
 
-data Tm
-    = Var Name
-    | Lam Name Tm
-    | App Tm Tm
-    | Let Name Tm Tm
-    | IfThenElse Tm Tm Tm
-    | Lit Literal
-    | Prefix PrefixOp Tm
-    | BinPred BinOp PredType Tm Tm
-    | BinOpBool BinOp BoolOp Tm Tm
-    | BinFieldOp  BinOp FieldOp Tm Tm
-    | BinEucOp BinOp EuclideanOp Tm Tm
+showTTm :: TTm -> String
+showTTm = \case
+    TVar n              -> unpack n
+    TApp t u            -> unwords ["(",showTTm t,showTTm u,")"]
+    TLam n t e          -> unwords ["(\\",unpack n,":",show t," . ",showTTm e,")"]
+    TLet n t u          -> unwords ["(let",unpack n,"=",showTTm t,showTTm u,")"]
+    TIfThenElse b t u   -> unwords [showTTm b,showTTm t,showTTm u]
+    TLit (LBool l)      -> show l
+    TLit (LCNum l)      -> show l
+    TLit (LCPoly l)     -> show l
+    TLit (LTop _)       -> "tt"
+    TPrefix op t        -> unwords [show op ,showTTm t]
+    TBinPred op _ t u   -> unwords [showTTm t,show op,showTTm u]
+    TBinOpBool op _ t u -> unwords [showTTm t,show op,showTTm u]
+    TBinEucOp op _ t u  -> unwords [showTTm t,show op,showTTm u]
+    TBinRingOp op _ t u -> unwords [showTTm t,show op,showTTm u]
+    TBinFieldOp  op _ t u -> unwords [showTTm t,show op,showTTm u]
 
-showTm :: Tm -> String
-showTm = \case
-    Var n              -> unpack n
-    App t u            -> unwords ["(",showTm t,showTm u,")"]
-    Lam n t            -> unwords ["(\\",unpack n,"->",showTm t,")"]
-    Let n t u          -> unwords ["(let",unpack n,"=",showTm t,showTm u,")"]
-    IfThenElse b t u   -> unwords [showTm b,showTm t,showTm u]
-    Lit (LBool l)      -> show l
-    Lit (LNum l)       -> show l
-    Lit (LCNum l)      -> show l
-    Lit (LPoly l)      -> show l
-    Lit (LCPoly l)     -> show l
-    Lit (LTop _)       -> "tt"
-    Prefix op t        -> unwords [show op ,showTm t]
-    BinPred op _ t u   -> unwords [showTm t,show op,showTm u]
-    BinOpBool op _ t u -> unwords [showTm t,show op,showTm u]
-    BinEucOp op _ t u -> unwords [showTm t,show op,showTm u]
-    BinFieldOp  op _ t u -> unwords [showTm t,show op,showTm u]
-
-instance Show Tm where
-    show = showTm
+instance Show TTm where
+    show = showTTm
 
 data Literal
-    = LNum Frac
-    | LCNum (Complex Frac)
-    | LPoly (PolyMulti Frac)
+    = LCNum (Complex Frac)
+--    | LNum Frac
+--    | --LPoly (PolyMulti Frac)
     | LCPoly (PolyMulti (Complex Frac))
     | LBool Bool
     | LTop ()
@@ -160,25 +144,29 @@ data Literal
 data Val
     = VVar Name
     | VApp Val Val
-    | VLam Name (Val -> Val)
+--    | VLam Name Type (Val -> Val)
+    | VLam Name Type (Val -> ExceptT String (State GEnv) Val)
     | VLit Literal
     | VPrefix PrefixOp Val
     | VBinPred BinOp PredType Val Val
     | VBinOpBool BinOp BoolOp Val Val
     | VBinEucOp BinOp EuclideanOp Val Val
+    | VBinRingOp BinOp RingOp Val Val
     | VBinFieldOp  BinOp FieldOp Val Val
 
 pattern VBool :: Bool -> Val
 pattern VBool b = VLit (LBool b)
 
+{-
 pattern VNum :: Frac -> Val
 pattern VNum n = VLit (LNum n)
 
-pattern VCNum :: Complex Frac -> Val
-pattern VCNum n = VLit (LCNum n)
-
 pattern VPoly :: PolyMulti Frac -> Val
 pattern VPoly n = VLit (LPoly n)
+-}
+
+pattern VCNum :: Complex Frac -> Val
+pattern VCNum n = VLit (LCNum n)
 
 pattern VCPoly :: PolyMulti (Complex Frac) -> Val
 pattern VCPoly n = VLit (LCPoly n)
