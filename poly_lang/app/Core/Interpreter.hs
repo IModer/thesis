@@ -32,7 +32,7 @@ freshName ns x = if x `elem` ns
 
 vLamApp :: Val -> Val -> ErrorT GState Val
 vLamApp (VLam _ _ t) u = t u
-vLamApp t          u = return $ VApp t u
+vLamApp t          u   = return $ VApp t u
 
 --evalTerm :: VEnv -> TTm -> State GEnv Val
 evalTerm :: VEnv -> TTm -> ErrorT GState Val
@@ -54,7 +54,7 @@ evalTerm env' = \case
         case b' of
             (VBool True ) -> evalTerm env' t
             (VBool False) -> evalTerm env' u
-            _             -> undefined
+            a             -> return $ VIfThenElse a t u
     TLet n e u -> do
         e' <- evalTerm env' e
         evalTerm ((n, e'):env') u
@@ -68,9 +68,6 @@ evalTerm env' = \case
                         (a       ) -> VPrefix op a
             Factor -> case e' of
                         (VCPoly i) -> VCPoly $ factor i
-                        (a       ) -> VPrefix op a
-            Der    -> case e' of
-                        (VCPoly i) -> VCPoly $ derivative i
                         (a       ) -> VPrefix op a
             Irred  -> case e' of
                         (VCPoly i) -> VCPoly $ irred i
@@ -133,6 +130,9 @@ quoteTerm ns = \case
         u' <- quoteTerm ns u
         return $ TApp t' u'
     VLit l                       -> return $ TLit l
+    VIfThenElse b t u            -> do
+        b' <- quoteTerm ns b
+        return $ TIfThenElse b' t u
     VLam (freshName ns -> x) t u -> do
         u' <- u $ VVar x
         u'' <- quoteTerm (x:ns) u'

@@ -23,9 +23,9 @@ typeCheck env = \case
     TLit (LTop _)  -> return TTop
     TVar x         -> do
         env' <- get
-        case lookup x $ getType env' of
+        case lookup x env of
             Just a  -> return a
-            Nothing -> case lookup x env of
+            Nothing -> case lookup x $ getType env' of
                     Just b  -> return b
                     Nothing -> throwError
                         ("Cannot find variable : " ++ T.unpack x)
@@ -93,9 +93,6 @@ typeCheck env = \case
                         then return e' 
                         else throwErrorLift $ cannotBeCalledWithError' e' op
             Factor -> if isPoly e'
-                        then return e'
-                        else throwErrorLift $ cannotBeCalledWithError' e' op
-            Der    -> if isPoly e'
                         then return e'
                         else throwErrorLift $ cannotBeCalledWithError' e' op
             Irred  -> if isPoly e'

@@ -48,14 +48,12 @@ data PrefixOp
     = Neg
     | Factor
     | Irred
-    | Der
 
 instance Show PrefixOp where
     show = \case
         Neg    -> "-"
         Factor -> "factor"
         Irred  -> "irred"
-        Der    -> "derivative"
 
 -- Abs
 data BinOp
@@ -94,9 +92,9 @@ instance Show BinOp where
 
 data Type
     = TArr Type Type
-    | TNum
+--    | TNum
+--    | TPoly
     | TCNum
-    | TPoly
     | TCPoly
     | TBool
     | TTop
@@ -104,21 +102,21 @@ data Type
 
 instance Show Type where
     show = \case
-        TArr t u -> unwords ["(",show t, " -> " ,show u,")"]
-        TCNum    -> "Complex Number"
-        TNum     -> "Number"
+        TArr t u -> unwords ["(",show t,"->",show u,")"]
+        TCNum    -> "CNum"
+--        TNum     -> "Number"
         TBool    -> "Bool"
-        TCPoly   -> "Complex Poly"
-        TPoly    -> "Poly"
+        TCPoly   -> "CPoly"
+--        TPoly    -> "Poly"
         TTop     -> "Top"
 
 showTTm :: TTm -> String
 showTTm = \case
     TVar n              -> unpack n
     TApp t u            -> unwords ["(",showTTm t,showTTm u,")"]
-    TLam n t e          -> unwords ["(\\",unpack n,":",show t," . ",showTTm e,")"]
+    TLam n t e          -> unwords ["(\\",unpack n,":",show t,".",showTTm e,")"]
     TLet n t u          -> unwords ["(let",unpack n,"=",showTTm t,showTTm u,")"]
-    TIfThenElse b t u   -> unwords [showTTm b,showTTm t,showTTm u]
+    TIfThenElse b t u   -> unwords ["if",showTTm b,"then",showTTm t,"else",showTTm u]
     TLit (LBool l)      -> show l
     TLit (LCNum l)      -> show l
     TLit (LCPoly l)     -> show l
@@ -147,6 +145,7 @@ data Val
 --    | VLam Name Type (Val -> Val)
     | VLam Name Type (Val -> ExceptT String (State GEnv) Val)
     | VLit Literal
+    | VIfThenElse Val TTm TTm
     | VPrefix PrefixOp Val
     | VBinPred BinOp PredType Val Val
     | VBinOpBool BinOp BoolOp Val Val

@@ -4,6 +4,17 @@ module Lib where
 
 import Control.Applicative
 
+{-
+import qualified Data.Set as Set
+-- from : https://github.com/nh2/haskell-ordnub
+ordNub :: (Ord a) => [a] -> [a]
+ordNub = go Set.empty
+  where
+    go _ [] = []
+    go s (x:xs) = if x `Set.member` s then go s xs
+                                      else x : go (Set.insert x s) xs
+-}
+
 -- Error type for typechecker
 {-
 type Error = Either String
@@ -84,5 +95,5 @@ eitherIdR f = either f id
 
 -- very bad function
 
-replaceAtIndex :: Int -> a -> [a] -> [a]
-replaceAtIndex i x xs = take i xs ++ [x] ++ drop (i + 1) xs
+replaceAtIndex :: Integer -> a -> [a] -> [a]
+replaceAtIndex i x xs = take (fromIntegral i) xs ++ [x] ++ drop (fromIntegral $ i + 1) xs

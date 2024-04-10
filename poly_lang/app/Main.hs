@@ -114,7 +114,7 @@ handleErrorShow e =
         return (eitherIdL show e_tm,env)) a
 
 handleErrorString :: ErrorT GState String -> GStateT IO String
-handleErrorString e = 
+handleErrorString e =
     let a = runExceptT e in
     mapStateT (\i -> 
         let (e_s, env) = runIdentity i in

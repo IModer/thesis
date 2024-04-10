@@ -77,12 +77,11 @@ parens p   = char '(' *> p <* char ')'
 keywords :: [Name]
 keywords = ["\\", "let", "in", "def"
             , "mod", "div", "factor"
-            , "irred", "derivative"
+            , "irred"
             , "var" 
             ,"if", "then", "else"
             , "open", "close" , "Zmod"
             ]
---            , "i", "tt"
 
 keyword :: Text -> Bool
 keyword x = x `elem` keywords
@@ -135,7 +134,6 @@ operatorTable =
       prefix  "-"          (TPrefix Neg   )
     , prefix  "factor"     (TPrefix Factor)
     , prefix  "irred"      (TPrefix Irred )
-    , prefix  "derivative" (TPrefix Der   )
     ] ,
     [
       binaryL "*"   (TBinRingOp Times (*)  )
@@ -217,9 +215,9 @@ pLet = do
 
 pBaseType :: Parser Type
 pBaseType = choice
-    [ symbol "Num"   $> TNum
-    , symbol "CNum"  $> TCNum
-    , symbol "Poly"  $> TPoly
+    [ symbol "CNum"  $> TCNum
+--    , symbol "Num"   $> TNum
+--    , symbol "Poly"  $> TPoly
     , symbol "CPoly" $> TCPoly
     , symbol "Bool"  $> TBool
     , symbol "Top"   $> TTop
