@@ -135,8 +135,11 @@ conjQuotAbs (x :+ y) = x `quot` norm :+ negate y `quot` norm
     where
         norm = (x `times` x) `plus` (y `times` y)
 
-instance Field a => GcdDomain (Complex a) where
-    divide x y = Just (x `times` conjQuotAbs y)
+instance (Field a, Eq a) => GcdDomain (Complex a) where
+    divide z@(x :+ y) w@(x' :+ y') = if y == zero && y' == zero
+                                        then do {k <- x `divide` x';
+                                            return $ k :+ zero}
+                                        else Just (z `times` conjQuotAbs w)
     gcd        = const $ const one
     lcm        = const $ const one
     coprime    = const $ const True
@@ -144,10 +147,10 @@ instance Field a => GcdDomain (Complex a) where
 instance (Field a, Eq a) => Euclidean (Complex a) where
     degree      = const 0
     quotRem x y = (quot x y, rem x y)
-    quot z@(x :+ y) w@(x' :+ y') = if y * y' == zero
+    quot z@(x :+ y) w@(x' :+ y') = if y == zero && y' == zero
                                     then x `quot` x' :+ zero
                                     else z `times` conjQuotAbs w
-    rem  (x :+ y) (x' :+ y') = if y * y' == zero
+    rem  (x :+ y) (x' :+ y') = if y == zero && y' == zero
                                 then x `rem` x' :+ zero
                                 else zero
 
