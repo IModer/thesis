@@ -1,16 +1,56 @@
 -- Comment
+
+--Polinóm derklarálás
 var X
+var Y
+var Z
+--Aritmetika
 3 + 3
-3 + 3
-def three := 3 -- comment
+3 * 3
+3 - 3
+(3 / 2) * 3
+4 mod 3
 
-let x := 2 in x
+--Polinóm Aritmetika
+let f := X * X + 2 * X in f * f + f 
 
-(\x : Num . (\f : Num -> Num . f x))
+def f := X * X + 2 * X
+
+def g := X * X * X * X + 4 * X * X - 4
+
+f mod g
+
+f mod Y * X -- Runtime error
+
+derivative 23 f -- ez javítva lesz `derivative X f` -re 
+
+--Függvények
+
+-- van egy bug ha kisbetűs az idNum 
+def IdNum := (\x : CNum . x)
+
+def absNum := (\x : CNum . if x >= 0 then x else (- x))
+
+\x : CNum . (\f : CNum -> CNum . f x)
+
+--Még nincs subst
+--def tangent := (\v : CPoly . \f : CPoly . \a . let dfa = (eval (derivative v f) a) in let fa = eval f a in fa + dfa * (v - a) )
+
+--Lambda calc stuff
+
+def T := (\x : CNum . \y : CNum . x)
+def F := (\x : CNum . \y : CNum . y)
+--def ITE := ...
+
+def Zero := (\f : CNum -> CNum . \x : CNum . x)
+def One  := (\f : CNum -> CNum . \x : CNum . f x)
+def Two  := (\f : CNum -> CNum . \x : CNum . f (f x))
+
+def Suc := (\n : (CNum -> CNum) -> CNum -> CNum . \f : CNum -> CNum . \x : CNum . f (n f x))
+
+def Plus := (\m : (CNum -> CNum) -> CNum -> CNum  . \n : (CNum -> CNum) -> CNum -> CNum . \f : CNum -> CNum . \x : CNum . m f (n f x))
 
 {-
 Multi 
 line comment
 -}
-
-def absNum := (\x : Num . if x >= 0 then x else (- x))
