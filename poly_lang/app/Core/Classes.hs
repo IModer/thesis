@@ -46,14 +46,16 @@ data GEnv = GEnv { typeEnv :: TEnv
                  , zmodf :: Maybe (PolyMulti Frac) }
 -}
 
-deriv'' :: Val -> Val -> Val
-deriv'' (VCNum i) (VCPoly p) = VCPoly $ derivative i p
-deriv'' a         b          = VApp (VApp (VVar $ pack "builtin.derivative") (VVar $ pack "x")) (VVar $ pack "p")
+deriv'' :: Val -> Val -> ErrorT GState Val
+deriv'' (VCPoly i) (VCPoly p) = if loneVarOf i p
+                                    then return $ VCPoly $ derivativeVar i p
+                                    else throwError "Runtime error : Variable to take derivative in must be a single variable thats present in the polinome"
+deriv'' a         b          = return $ VApp (VApp (VVar $ pack "builtin.derivative") (VVar $ pack "x")) (VVar $ pack "p")
 
-derivType = (pack "derivative",TArr TCNum $ TArr TCPoly TCPoly)
-derivVal  = (pack "derivative", VLam (pack "x") TCNum $ \x -> 
+derivType = (pack "derivative",TArr TCPoly $ TArr TCPoly TCPoly)
+derivVal  = (pack "derivative", VLam (pack "x") TCPoly $ \x -> 
                         return $ VLam (pack "p") TCPoly $ \p -> 
-                            return $ deriv'' x p)
+                            deriv'' x p)
 
 emptyEnv :: GEnv
 emptyEnv = GEnv [derivType] 

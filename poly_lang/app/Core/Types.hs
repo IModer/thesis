@@ -6,7 +6,7 @@ import Lib
 
 import Control.Exception
 
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (fromJust, fromMaybe, isJust)
 import Data.Ord   (comparing)
 import GHC.Natural (wordToNatural)
 
@@ -321,11 +321,27 @@ ifMonoWhichVar (BoxP p) = let a = unMultiPoly p in
                             V.maximum $  V.map (fromMaybe 0 . V.elemIndex True) $ V.map (V.map (>0)) usa
 -} 
 
+--numOfCoeffs :: PolyMulti a -> V.Vector (V.Vector Word, a)
+numOfCoeffs (BoxP p) = let a = unMultiPoly p in
+                let usa =  a in
+                usa
+
+loneVar :: (Eq a, Semiring a) => PolyMulti a -> Bool
+loneVar (BoxP p) = let a = unMultiPoly p in
+                    --V.map (SU.sum . fst) a
+                    [(1,one)] == zip (V.toList (V.map (SU.sum . fst) a)) (V.toList $ V.map snd a)
+                    --isJust (a V.!? 0) && V.length a == 1
+
 whichVars :: PolyMulti a -> [Integer]
 whichVars (BoxP p) = let a = unMultiPoly p in
                             let usa = V.map (V.convert . SU.fromSized . fst) a in
                             nub $ V.toList $ V.concat $ V.toList $ V.filter (V.fromList [] /=) $ V.map (V.map fst . V.filter ((>0) . snd) . V.zip (V.fromList [0..26])) usa
                             --V.map (fromMaybe 0 . V.elemIndex True) $ V.map (V.map (>0)) usa
+
+-- x is a lose variable of P, meaning P has x in it and x is just a variable with coeff 1
+loneVarOf :: (Eq a, Semiring a) => PolyMulti a -> PolyMulti a -> Bool
+loneVarOf x p = let vs = whichVars x in
+                    loneVar x && (head vs `elem` whichVars p)
 
 toMonoPoly :: (Eq a, Semiring a) => PolyMulti a -> (PolyMono a, Integer)
 toMonoPoly (BoxP p) =  let a = unMultiPoly p in
@@ -387,6 +403,9 @@ factor = undefined
 
 deriv' :: (Eq a, Semiring a) => Finite 26 -> PolyMulti a -> PolyMulti a
 deriv' k (BoxP x) = BoxP $ deriv k x
+
+derivativeVar :: (Eq a, Semiring a) => PolyMulti a -> PolyMulti a -> PolyMulti a
+derivativeVar x p = let i = finite $ head $ whichVars x in deriv' i p
 
 derivative :: (Eq a, Semiring a) => Complex Frac -> PolyMulti a -> PolyMulti a
 derivative k x = deriv' (finite k') x
