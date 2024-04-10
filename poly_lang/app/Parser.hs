@@ -81,6 +81,7 @@ keywords = ["\\", "let", "in", "def"
             , "var" 
             ,"if", "then", "else"
             , "open", "close" , "Zmod"
+            , "tt", "i"
             ]
 
 keyword :: Text -> Bool
@@ -102,7 +103,11 @@ pVariable :: Parser TTm
 pVariable = TVar <$> pIdent
 
 pLit :: Parser TTm
-pLit = choice [pInt, pBool, pCompI, pTT]
+pLit = try $ choice 
+    [ pInt <?> "integer literal"
+    , pBool <?> "bool literal"
+    , pCompI <?> "complex literal"
+    , pTT <?> "tt literal"]
 
 pTT :: Parser TTm
 pTT = do
@@ -111,7 +116,7 @@ pTT = do
 
 pCompI :: Parser TTm
 pCompI = do
-    pKeyword "i"
+    pKeyword "i" <?> "i keyword"
     return $ TLit $ LCNum (zero :+ one) -- i
 
 pInt :: Parser TTm
@@ -169,12 +174,12 @@ postfix n f = Postfix (f <$ symbol n)
 pExprT :: Parser TTm
 pExprT = try $ choice 
     [ 
-      {-dbg "parens expr" -} parens pExpr <?> "parens expr"
-    , {-dbg "literal"     -} pLit         <?> "literal"
-    , {-dbg "variable"    -} pVariable    <?> "variable"
-    , {-dbg "function"    -} pLam         <?> "function"
-    , {-dbg "let expr"    -} pLet         <?> "let expr"
-    , {-dbg "if  expr"    -} pIfThenElse  <?> "if expr"
+      {-dbg "parens expr"-}  (parens pExpr) <?> "parens expr"
+    , {-dbg "literal"    -}  pLit         <?> "literal"
+    , {-dbg "variable"   -}  pVariable    <?> "variable"
+    , {-dbg "function"   -}  pLam         <?> "function"
+    , {-dbg "let expr"   -}  pLet         <?> "let expr"
+    , {-dbg "if  expr"   -}  pIfThenElse  <?> "if expr"
     ]
 
 pExpr :: Parser TTm
