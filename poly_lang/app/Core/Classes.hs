@@ -5,6 +5,7 @@ import Control.Monad.Except
 import Core.AST
 import Core.Types
 import GHC.TypeNats
+import Data.Text
 
 -- Error type for typechecking errors
 -- is a monad
@@ -45,8 +46,18 @@ data GEnv = GEnv { typeEnv :: TEnv
                  , zmodf :: Maybe (PolyMulti Frac) }
 -}
 
+deriv'' :: Val -> Val -> Val
+deriv'' (VCNum i) (VCPoly p) = VCPoly $ derivative i p
+deriv'' a         b          = VApp (VApp (VVar $ pack "builtin.derivative") (VVar $ pack "x")) (VVar $ pack "p")
+
+derivType = (pack "derivative",TArr TCNum $ TArr TCPoly TCPoly)
+derivVal  = (pack "derivative", VLam (pack "x") TCNum $ \x -> 
+                        return $ VLam (pack "p") TCPoly $ \p -> 
+                            return $ deriv'' x p)
+
 emptyEnv :: GEnv
-emptyEnv = GEnv [] [] Nothing Nothing
+emptyEnv = GEnv [derivType] 
+                [derivVal] Nothing Nothing
 
 type GState = State GEnv
 

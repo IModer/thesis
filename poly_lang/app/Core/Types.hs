@@ -21,7 +21,7 @@ import qualified Data.Poly.Semiring as PS
 --import Data.Poly.Internal.Multi.Field
 
 -- Show Poly
-import Data.List (intersperse, maximumBy)
+import Data.List (intersperse, maximumBy, nub)
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed.Sized as SU
 import qualified Data.Vector as V
@@ -314,21 +314,28 @@ getPolyNumOfVariables :: PolyMulti a -> Int
 getPolyNumOfVariables (BoxP p) = let a = unMultiPoly p in
                                     let usa = V.map (V.convert . SU.fromSized . fst) a in
                                         V.length $ V.filter id $ V.foldl1 (V.zipWith (||)) $ V.map (V.map (>0)) usa
-
+{-
 ifMonoWhichVar :: PolyMulti a -> Int
 ifMonoWhichVar (BoxP p) = let a = unMultiPoly p in
                             let usa = V.map (V.convert . SU.fromSized . fst) a in
-                            V.maximum $  V.map (maybe 0 id . V.elemIndex True) $ V.map (V.map (>0)) usa
+                            V.maximum $  V.map (fromMaybe 0 . V.elemIndex True) $ V.map (V.map (>0)) usa
+-} 
 
-toMonoPoly :: (Eq a, Semiring a) => PolyMulti a -> (PolyMono a, Int)
+whichVars :: PolyMulti a -> [Integer]
+whichVars (BoxP p) = let a = unMultiPoly p in
+                            let usa = V.map (V.convert . SU.fromSized . fst) a in
+                            nub $ V.toList $ V.concat $ V.toList $ V.filter (V.fromList [] /=) $ V.map (V.map fst . V.filter ((>0) . snd) . V.zip (V.fromList [0..26])) usa
+                            --V.map (fromMaybe 0 . V.elemIndex True) $ V.map (V.map (>0)) usa
+
+toMonoPoly :: (Eq a, Semiring a) => PolyMulti a -> (PolyMono a, Integer)
 toMonoPoly (BoxP p) =  let a = unMultiPoly p in
                         let t = V.toList $ V.zip (V.map (fromIntegral . SU.sum . fst) a) (V.map snd a)  in
                         let m = fst $ maximumBy (comparing fst) t in
                         let c = [fromMaybe zero $ lookup i t | i <- [0..m] ] in --lookup ((fst i) :: Int) t
-                        let i = ifMonoWhichVar $ BoxP p in
+                        let [i] = whichVars $ BoxP p in -- if there are multiple variables we fail here 
                         (PS.toPoly $ V.fromList c , i)
 
-fromMonoPoly :: (Eq a, Semiring a) => PolyMono a -> Int -> PolyMulti a
+fromMonoPoly :: (Eq a, Semiring a) => PolyMono a -> Integer -> PolyMulti a
 fromMonoPoly p i = let a = PS.unPoly p in
                         let ls j = unsafe (SU.fromList $ replaceAtIndex i (j :: Word) wzeros :: Maybe (SU.Vector 26 Word)) in
                         let b = V.map (\(x, n) -> (ls n,x)) $ V.zip a (V.fromList [0..(fromIntegral $ V.length a)]) in
@@ -342,7 +349,7 @@ testPoly =  let Just x = stringToPoly "X" in
             let Just tenthird = fracToPoly (10 %% 3) in
                 --tenthird * x * x * x * z * z + four * {-y*-} x + x + four
                 --x * x + tenthird * x + four + y
-                x * y
+                x * x * z + four + z
 
 testPoly2 :: PolyMulti Frac
 testPoly2 =  let Just x = stringToPoly "X" in
@@ -365,6 +372,7 @@ test = do
     case e of
         Left a -> print a
         Right a -> print a
+
 -- This cannot be done, but isnt needed as we always cast up
 {-
 complexToPoly :: Complex Frac -> Maybe (PolyMulti Frac)
@@ -376,4 +384,21 @@ irred = undefined
 
 factor = undefined
 
-derivative = undefined
+
+deriv' :: (Eq a, Semiring a) => Finite 26 -> PolyMulti a -> PolyMulti a
+deriv' k (BoxP x) = BoxP $ deriv k x
+
+derivative :: (Eq a, Semiring a) => Complex Frac -> PolyMulti a -> PolyMulti a
+derivative k x = deriv' (finite k') x
+    where 
+        ((Box a) :+ _) = k
+        k' = numerator a
+
+{-
+derivative :: (Eq a, Semiring a) => PolyMulti a -> PolyMulti a
+derivative x= go (whichVars x) x
+    where
+        --go :: Finite 26 -> PolyMulti (Complex Frac) -> PolyMulti (Complex Frac)
+        go [] x' = x'
+        go (i:is) x' = go is (deriv' (finite i) x')
+-}
