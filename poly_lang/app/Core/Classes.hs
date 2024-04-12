@@ -64,3 +64,14 @@ emptyEnv = GEnv [derivType]
 type GState = State GEnv
 
 type GStateT = StateT GEnv
+
+
+instance Monoid (ExceptT String GState String) where
+    mempty = return ""
+    mappend a b = do
+        a' <- a
+        b' <- b
+        return $ a' ++ b'
+
+instance Semigroup (ExceptT String GState String) where
+    (<>) = mappend

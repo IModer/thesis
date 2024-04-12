@@ -18,7 +18,7 @@ import Core.AST
 import Core.Types
 import Lib
 import Parser
-import Data.Text hiding (length, map, unlines)
+import Data.Text hiding (length, map, unlines, uncons)
 
 main :: IO ()
 main = do
@@ -40,7 +40,7 @@ handleArgs xs = case pCommandLineCommand xs of
         return emptyEnv
     -- Ezt lehet ki lehetne absztrahálni
     LoadFileCL files -> do
-        (logs, env) <- runStateT (loadFiles files) (emptyEnv)
+        (logs, env) <- runStateT (loadFiles files) emptyEnv
         forM_ logs putStrLn
         return env
 
@@ -79,22 +79,50 @@ read_ = do
     hFlush stdout
     getLine
 
+-- This typechecks
+handle' :: Either TTm TopDef -> ExceptT String GState String
+handle' tm_def = case tm_def of
+        Left tm   -> show <$> runTypedTerm tm
+        Right def -> handleTopDef def
+
+handleError' :: ExceptT String GState String -> StateT GEnv IO String
+handleError' a =    let b = either id id <$> runExceptT a in 
+                        let c = mapStateT (return . runIdentity) b in c
+
 evalFile :: String -> String -> GStateT IO String
 evalFile filename cs = case parseStringFile filename $ pack cs of
     Left a -> return $ errorBundlePretty a
-    Right tms_defs -> do
-        s <- mapM handleTmDef tms_defs
-        return $ unlines s
-    where
-        handleTmDef :: Either TTm TopDef -> GStateT IO String
-        handleTmDef tm_def = case tm_def of
--- TODO : le kell kezelni ha a kifejezés nem volt helyes,
---  hogy akkor az egész ne töltsön be
-            Left tm   -> do
---                lift $ putStrLn $ "running Tm : " ++ show tm
-                handleErrorShow (runTypedTerm tm)
-            Right def -> do
-                handleErrorString (handleTopDef def)
+    Right tms_defs -> handleError' $ unlines <$> mapM handle' tms_defs
+{-
+
+    takeIsLeft a ++ 
+    maybe [] ((: []) . fst) $ uncons $ dropIsLeft a
+
+
+
+    runTypedTerm tm :: ExceptT String GState TTm
+    handleTopDef def :: ExceptT String GState String
+
+    tms_defs :: [Either TTm TopDef]
+
+    fmap show :: ExceptT String GState TTm -> ExceptT String GState String
+
+    handleErrorShow :: ExceptT String GState a -> StateT GEnv IO String
+                    :: GState (Either String a) -> 
+
+
+    mapM :: (Either TTm TopDef -> ExceptT String GState) -> 
+            [Either TTm TopDef] -> ExceptT String GState [String]
+
+    mapM handle' tms_defs :: ExceptT String GState [String]
+
+    unlines <$> mapM handle' tms_defs :: ExceptT String GState String
+
+    State GEnv String -> StateT GEnv IO String
+
+    undefined :: StateT GEnv IO String
+
+-}
 
 evalRepl :: String -> GStateT IO String
 evalRepl cs = case parseStringRepl $ pack cs of
