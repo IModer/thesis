@@ -338,7 +338,7 @@ loneVar (BoxP p) = let a = unMultiPoly p in
 whichVars :: PolyMulti a -> [Integer]
 whichVars (BoxP p) = let a = unMultiPoly p in
                             let usa = V.map (V.convert . SU.fromSized . fst) a in
-                            nub $ V.toList $ V.concat $ V.toList $ V.filter (V.fromList [] /=) $ V.map (V.map fst . V.filter ((>0) . snd) . V.zip (V.fromList [0..26])) usa
+                            nub $ V.toList $ V.concat $ V.toList $ V.filter (not . V.null) $ V.map (V.map fst . V.filter ((>0) . snd) . V.zip (V.fromList [0..26])) usa
                             --V.map (fromMaybe 0 . V.elemIndex True) $ V.map (V.map (>0)) usa
 
 -- x is a lose variable of P, meaning P has x in it and x is just a variable with coeff 1

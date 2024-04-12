@@ -99,12 +99,14 @@ evalFile filename cs = case parseStringFile filename $ pack cs of
 evalRepl :: String -> GStateT IO String
 evalRepl cs = case parseStringRepl $ pack cs of
     Left a   -> return $ errorBundlePretty a
-    Right tm_co_def -> case tm_co_def of
-        OLeft tm -> do
-            handleErrorShow (runTypedTerm tm)
-        OMiddle co -> handleCommand co
-        ORight def -> do
-            handleErrorString (handleTopDef def)
+    Right tm_co_def_b -> 
+        case tm_co_def_b of
+            Left tm_def_com -> 
+                case tm_def_com of
+                    OLeft tm    -> handleErrorShow (runTypedTerm tm)
+                    OMiddle co  -> handleCommand co
+                    ORight def  -> handleErrorString (handleTopDef def)
+            Right b         -> return "" -- it was an empty line
 
 handleErrorShow :: Show a => ErrorT GState a -> GStateT IO String
 handleErrorShow e = 
@@ -161,11 +163,16 @@ runStatefulRepl :: GStateT IO ()
 runStatefulRepl = do
     inp <- lift read_                           -- Lift IO into StateT IO
     unless (trimS inp == ":q") $ do
+        tm <- evalRepl inp                      -- Eval could print everything so we dont need to worry about passing things to print_
+        lift $ print_ tm                        -- Lift IO into StateT IO
+        runStatefulRepl
+{-
         if trimS inp /= "" then do
             tm <- evalRepl inp                      -- Eval could print everything so we dont need to worry about passing things to print_
             lift $ print_ tm                        -- Lift IO into StateT IO
             runStatefulRepl
         else do
             runStatefulRepl
+-}
     where
         trimS = unpack . strip . pack

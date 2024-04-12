@@ -174,12 +174,12 @@ postfix n f = Postfix (f <$ symbol n)
 pExprT :: Parser TTm
 pExprT = try $ choice 
     [ 
-      {-dbg "parens expr"-}  (parens pExpr) <?> "parens expr"
+      {-dbg "parens expr"-}  (parens pExpr) <?> "parenthesized expression"
     , {-dbg "literal"    -}  pLit         <?> "literal"
     , {-dbg "variable"   -}  pVariable    <?> "variable"
     , {-dbg "function"   -}  pLam         <?> "function"
-    , {-dbg "let expr"   -}  pLet         <?> "let expr"
-    , {-dbg "if  expr"   -}  pIfThenElse  <?> "if expr"
+    , {-dbg "let expr"   -}  pLet         <?> "let expression"
+    , {-dbg "if  expr"   -}  pIfThenElse  <?> "if_then_else expression"
     ]
 
 pExpr :: Parser TTm
@@ -302,7 +302,7 @@ pCloseDef = do
     return CloseDef
 
 pTopDef :: Parser TopDef
-pTopDef = choice [pLetDef, pVarDef, pOpenDef, pCloseDef]
+pTopDef = choice [pLetDef, pVarDef, pOpenDef, pCloseDef] <?> "a valid top level definition"
 
 pSimpleCommand :: Char -> Text -> Command -> Parser Command
 pSimpleCommand c s co = do
@@ -354,17 +354,23 @@ pRunTimedCommand = do
 
 pCommand :: Parser Command
 pCommand = do
-    void $ C.char ':'
+    void (C.char ':') <?> "a valid command"
     choice
-        [ pSimpleCommand 'h' "help" PrintHelp
-        , pRunTimedCommand
-        , pGetTypeCommand
-        , pGetInfoCommand
-        , pLoadFileCommand
+        [ pSimpleCommand 'h' "help" PrintHelp <?> "a help command"
+        , pRunTimedCommand <?> "benchmark commad"
+        , pGetTypeCommand <?> "types command"
+        , pGetInfoCommand <?> "info command"
+        , pLoadFileCommand <?> "load file command"
         ]
 
-pReplLine :: Parser (Option TTm Command TopDef)
-pReplLine = ws *> eitherOptionP pTm pCommand pTopDef <* eof
+pReplLine :: Parser (Either (Option TTm Command TopDef) ())
+pReplLine = ws *> eitherP (try $ eitherOptionP pTm pCommand pTopDef) eof
+
+pRepl :: Parser (Either (Option TTm Command TopDef) ())
+pRepl = do
+    tm_com_def_b <- pReplLine
+    void eof
+    return tm_com_def_b
 
 pNewLine :: Parser ()
 pNewLine = void $ ws *> C.newline
@@ -383,7 +389,7 @@ pFile = do
 
 type ParserErrorT = Either (ParseErrorBundle Text Void)
 
-type ParserOutput = ParserErrorT (Option TTm Command TopDef)
+type ParserOutput = ParserErrorT (Either (Option TTm Command TopDef) ())
 
 parseStringFile :: String -> Text -> ParserErrorT [Either TTm TopDef]
 parseStringFile filename = parse pFile $ "(" ++ filename ++")"
