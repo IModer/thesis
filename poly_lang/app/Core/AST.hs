@@ -4,11 +4,12 @@ module Core.AST where
 
 --import Ring
 import Core.Types
-import Data.Euclidean
+import Data.Euclidean (rem, Euclidean(..), Field(..))
 import Data.Semiring
 import Data.Text hiding (unwords)
 import Control.Monad.State
 import Control.Monad.Except
+import Prelude hiding (rem)
 --import Ring
 
 type PredType = forall a . Ord a => a -> a -> Bool
@@ -18,6 +19,9 @@ type EuclideanOp = forall a . (Euclidean a, Ring a) => a -> a -> a -- Poly and C
 type RingOp = forall a . (Ring a) => a -> a -> a
 type BoolOp = Bool -> Bool -> Bool
 
+--ringOp :: Complex Frac -> RingOp -> RingOp
+--ringOp m f = \a -> \b -> f _ _ --f (a `rem` m) (b `rem` m)
+
 type Name = Text
 
 type TEnv = [(Name, Type)]
@@ -26,8 +30,8 @@ type VEnv  = [(Name, Val)]
 --GEnv
 data GEnv = GEnv { typeEnv :: TEnv
                  , nameEnv :: VEnv
-                 , zmodn :: Maybe Frac
-                 , zmodf :: Maybe (PolyMulti Frac) }
+                 , zmodn :: Maybe (Complex Frac)
+                 , zmodf :: Maybe (PolyMulti (Complex Frac)) }
 
 
 data TTm
@@ -163,6 +167,9 @@ pattern VNum n = VLit (LNum n)
 pattern VPoly :: PolyMulti Frac -> Val
 pattern VPoly n = VLit (LPoly n)
 -}
+
+tMod :: TTm -> TTm -> TTm
+tMod t u = TBinEucOp Mod rem t u
 
 pattern VCNum :: Complex Frac -> Val
 pattern VCNum n = VLit (LCNum n)

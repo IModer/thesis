@@ -7,6 +7,8 @@ import Core.Types
 import GHC.TypeNats
 import Data.Text
 
+import Data.Maybe (isJust)
+
 -- Error type for typechecking errors
 -- is a monad
 
@@ -33,11 +35,22 @@ getType = typeEnv
 getVal :: GEnv -> VEnv
 getVal = nameEnv
 
-getZmodN :: GEnv -> Maybe Frac
+getZmodN :: GEnv -> Maybe (Complex Frac)
 getZmodN = zmodn
 
-getZmodF :: GEnv -> Maybe (PolyMulti Frac)
+getZmodF :: GEnv -> Maybe (PolyMulti (Complex Frac))
 getZmodF = zmodf
+
+setZmodN :: Maybe (Complex Frac) -> GEnv -> GEnv
+setZmodN mf g = g {zmodn = mf}
+
+setZmodF :: Maybe (PolyMulti (Complex Frac)) -> GEnv -> GEnv
+setZmodF mp g = g {zmodf = mp}
+
+isContextOpen :: GState Bool
+isContextOpen = do
+    env <- get
+    return $ (isJust $ getZmodN env) || (isJust $ getZmodF env)
 
 {-
 data GEnv = GEnv { typeEnv :: TEnv

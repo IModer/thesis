@@ -20,8 +20,18 @@ import Data.Euclidean
 
 runTypedTerm :: TTm -> ErrorT GState TTm
 runTypedTerm tm = do
-    _ <- typeCheck [] tm
-    normalForm tm
+    b <- lift isContextOpen
+    env <- get
+    let tm' = maybe 
+                (maybe 
+                    tm 
+                    (\x -> perculateZmod (Right x) tm) 
+                    (getZmodF env)) 
+                (\x -> perculateZmod (Left x) tm) 
+                (getZmodN env) in do
+        _ <- typeCheck [] tm'
+        --return tm'
+        normalForm tm'
 
 --- Evaluation ---
 
@@ -29,6 +39,26 @@ freshName :: [Name] -> Name -> Name
 freshName ns x = if x `elem` ns
                     then freshName ns $ snoc x '\''
                     else x
+
+perculateZmod :: Either (Complex Frac) (PolyMulti (Complex Frac)) -> TTm -> TTm
+perculateZmod f = \case
+    TVar n               -> TVar n --tMod (TVar n) (TLit $ LCNum f)
+    TApp t u             -> TApp (perculateZmod f t) (perculateZmod f u)
+    TLam n t e           -> TLam n t (perculateZmod f e)
+    TIfThenElse b t u    -> TIfThenElse (perculateZmod f b) (perculateZmod f t) (perculateZmod f u)
+    TLet n e u           -> TLet n (perculateZmod f e) (perculateZmod f u)
+    TLit l               -> case l of
+                                LCNum _  -> tMod (TLit l) f'
+                                LCPoly _ -> tMod (TLit l) f'
+                                _        -> TLit l 
+    TBinPred    op g t u -> TBinPred op g (perculateZmod f t) (perculateZmod f u)
+    TBinOpBool  op g t u -> TBinOpBool op g (perculateZmod f t) (perculateZmod f u)
+    TBinFieldOp op g t u -> tMod (TBinFieldOp op g (perculateZmod f t) (perculateZmod f u)) f'
+    TBinEucOp   op g t u -> tMod (TBinEucOp op g (perculateZmod f t) (perculateZmod f u)) f'
+    TBinRingOp  op g t u -> tMod (TBinRingOp op g (perculateZmod f t) (perculateZmod f u)) f'
+    TPrefix     op t     -> tMod (TPrefix op (perculateZmod f t)) f'
+    where
+        f' = either (TLit . LCNum) (TLit . LCPoly) f
 
 vLamApp :: Val -> Val -> ErrorT GState Val
 vLamApp (VLam _ _ t) u = t u
@@ -47,7 +77,6 @@ evalTerm env' = \case
         u' <- evalTerm env' u
         vLamApp t' u'
     TLam n t e -> do
-        env <- get
         return $ VLam n t (\u -> evalTerm ((n, u):env') e) -- (\u -> evalState (evalTerm ((n, u):env') e) env )
     TIfThenElse b t u -> do
         b' <- evalTerm env' b
@@ -140,6 +169,14 @@ quoteTerm ns = \case
     VPrefix op l                 -> do
         l' <- quoteTerm ns l
         return $ TPrefix op l'
+    VBinOpBool op f l r          -> do
+        l' <- quoteTerm ns l
+        r' <- quoteTerm ns r
+        return $ TBinOpBool op f l' r'
+    VBinRingOp op f l r          -> do
+        l' <- quoteTerm ns l
+        r' <- quoteTerm ns r
+        return $ TBinRingOp op f l' r'
     VBinPred op f l r            -> do
         l' <- quoteTerm ns l
         r' <- quoteTerm ns r

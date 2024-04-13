@@ -154,7 +154,6 @@ handleTopDef :: TopDef -> ErrorT GState String
 handleTopDef def = case def of
     LetDef name ttm -> do
         t <- typeCheck [] ttm
-        --val <- lift $ evalTerm [] ttm
         val <- evalTerm [] ttm
         modify $ insertType (name, t)
         modify $ insertVal (name, val)
@@ -166,8 +165,34 @@ handleTopDef def = case def of
                 modify $ insertVal (name, VCPoly p)
                 return $ unpack name ++ " is now a polinomial variable"
             Nothing -> throwErrorLift (unpack name ++ " cannot be made a polinomial variable")
-    OpenDef a -> undefined
-    CloseDef -> undefined
+    -- We check if a is a valid VCNum or VCPoly
+    OpenDef ttm -> do
+        b <- lift isContextOpen
+        if b
+            then
+                throwError "Error: Context already open, close it with `close`"
+            else do
+                t   <- typeCheck [] ttm
+                val <- evalTerm [] ttm
+                case val of
+                    VCNum  n -> do
+                        modify $ setZmodN $ Just n
+                        return $ "Context is now open with : " ++ show n
+                    VCPoly p -> do
+                        modify $ setZmodF $ Just p 
+                        return $ "Context is now open with : " ++ show p
+                    a        -> throwError "Error : Not a valid number/polinomial"
+    -- We clear out both ZmodN and ZmodF
+    CloseDef -> do
+        b <- lift isContextOpen
+        if not b
+            then
+                throwError "Error: Context already closed"
+            else do
+                modify $ setZmodN Nothing
+                modify $ setZmodF Nothing
+                return "Successfully closed the context"
+
 
 handleCommand :: Command -> GStateT IO String
 handleCommand co = case co of

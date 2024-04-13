@@ -346,18 +346,26 @@ loneVarOf :: (Eq a, Semiring a) => PolyMulti a -> PolyMulti a -> Bool
 loneVarOf x p = let vs = whichVars x in
                     loneVar x && (head vs `elem` whichVars p)
 
-toMonoPoly :: (Eq a, Semiring a) => PolyMulti a -> (PolyMono a, Integer)
+toMonoPoly :: (Eq a, Semiring a) => PolyMulti a -> (PolyMono a, Maybe Integer)
 toMonoPoly (BoxP p) =  let a = unMultiPoly p in
                         let t = V.toList $ V.zip (V.map (fromIntegral . SU.sum . fst) a) (V.map snd a)  in
                         let m = fst $ maximumBy (comparing fst) t in
                         let c = [fromMaybe zero $ lookup i t | i <- [0..m] ] in --lookup ((fst i) :: Int) t
-                        let [i] = whichVars $ BoxP p in -- if there are multiple variables we fail here 
-                        (PS.toPoly $ V.fromList c , i)
+                        if null $ whichVars $ BoxP p 
+                            then (PS.toPoly $ V.fromList c , Nothing)
+                            else 
+                                let [i] = whichVars $ BoxP p in -- if there are multiple variables we fail here 
+                                (PS.toPoly $ V.fromList c , Just i)
 
-fromMonoPoly :: (Eq a, Semiring a) => PolyMono a -> Integer -> PolyMulti a
-fromMonoPoly p i = let a = PS.unPoly p in
+
+fromMonoPoly :: (Eq a, Semiring a) => PolyMono a -> Maybe Integer -> PolyMulti a
+fromMonoPoly p (Just i) = let a = PS.unPoly p in
                         let ls j = unsafe (SU.fromList $ replaceAtIndex i (j :: Word) wzeros :: Maybe (SU.Vector 26 Word)) in
                         let b = V.map (\(x, n) -> (ls n,x)) $ V.zip a (V.fromList [0..(fromIntegral $ V.length a)]) in
+                        BoxP $ toMultiPoly b
+fromMonoPoly p Nothing  = let a = PS.unPoly p in
+                        let ls = unsafe (SU.fromList $ wzeros :: Maybe (SU.Vector 26 Word)) in
+                        let b = V.map (\(x, n) -> (ls,x)) $ V.zip a (V.fromList [0..(fromIntegral $ V.length a)]) in
                         BoxP $ toMultiPoly b
 
 testPoly :: PolyMulti Frac
@@ -368,7 +376,8 @@ testPoly =  let Just x = stringToPoly "X" in
             let Just tenthird = fracToPoly (10 %% 3) in
                 --tenthird * x * x * x * z * z + four * {-y*-} x + x + four
                 --x * x + tenthird * x + four + y
-                x * x * z + four + z
+                --x * x * z + four + z
+                x + four
 
 testPoly2 :: PolyMulti Frac
 testPoly2 =  let Just x = stringToPoly "X" in
