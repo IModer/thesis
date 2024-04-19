@@ -141,12 +141,12 @@ evalRepl cs = case parseStringRepl $ pack cs of
     Left a   -> return $ errorBundlePretty a
     Right tm_co_def_b -> 
         case tm_co_def_b of
-            Left tm_def_com -> 
+            Left b         -> return "" -- it was an empty line
+            Right tm_def_com -> 
                 case tm_def_com of
                     OLeft tm    -> handleErrorShow (runTypedTerm tm)
                     OMiddle co  -> handleCommand co
                     ORight def  -> handleErrorString (handleTopDef def)
-            Right b         -> return "" -- it was an empty line
 
 handleErrorShow :: Show a => ErrorT GState a -> GStateT IO String
 handleErrorShow e = 

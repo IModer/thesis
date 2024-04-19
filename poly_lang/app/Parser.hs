@@ -72,7 +72,7 @@ char :: Char -> Parser Char
 char c = lexeme (C.char c)
 
 parens :: Parser a -> Parser a
-parens p   = char '(' *> p <* char ')'
+parens = between (symbol "(") (symbol ")")
 
 keywords :: [Name]
 keywords = ["\\", "let", "in", "def"
@@ -189,12 +189,12 @@ postfix n f = Postfix (f <$ symbol n)
 pExprT :: Parser TTm
 pExprT = try $ choice 
     [ 
-      {-dbg "parens expr"-}  (parens pExpr) <?> "parenthesized expression"
-    , {-dbg "literal"    -}  pLit         <?> "literal"
-    , {-dbg "variable"   -}  pVariable    <?> "variable"
-    , {-dbg "function"   -}  pLam         <?> "function"
-    , {-dbg "let expr"   -}  pLet         <?> "let expression"
-    , {-dbg "if  expr"   -}  pIfThenElse  <?> "if_then_else expression"
+      dbg "parens expr"  (parens pExpr) <?> "parenthesized expression"
+    , dbg "literal"      pLit         <?> "literal"
+    , dbg "variable"     pVariable    <?> "variable"
+    , dbg "function"     pLam         <?> "function"
+    , dbg "let expr"     pLet         <?> "let expression"
+    , dbg "if  expr"     pIfThenElse  <?> "if_then_else expression"
     ]
 
 pExpr :: Parser TTm
@@ -379,10 +379,10 @@ pCommand = do
         , pLoadFileCommand <?> "load file command"
         ]
 
-pReplLine :: Parser (Either (Option TTm Command TopDef) ())
-pReplLine = ws *> eitherP (try $ eitherOptionP pTm pCommand pTopDef) eof
+pReplLine :: Parser (Either () (Option TTm Command TopDef))
+pReplLine = ws *> eitherP eof (try $ eitherOptionP pTm pCommand pTopDef)
 
-pRepl :: Parser (Either (Option TTm Command TopDef) ())
+pRepl :: Parser (Either () (Option TTm Command TopDef))
 pRepl = do
     tm_com_def_b <- pReplLine
     void eof
@@ -405,10 +405,10 @@ pFile = do
 
 type ParserErrorT = Either (ParseErrorBundle Text Void)
 
-type ParserOutput = ParserErrorT (Either (Option TTm Command TopDef) ())
+type ParserOutput = ParserErrorT (Either () (Option TTm Command TopDef) )
 
 parseStringFile :: String -> Text -> ParserErrorT [Either TTm TopDef]
 parseStringFile filename = parse pFile $ "(" ++ filename ++")"
 
 parseStringRepl :: Text -> ParserOutput
-parseStringRepl = parse pReplLine "(poly)"
+parseStringRepl = parse pRepl "(poly)"
