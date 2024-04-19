@@ -5,7 +5,7 @@ import Control.Monad.Except
 import Core.AST
 import Core.Types
 import GHC.TypeNats
-import Data.Text
+import Data.Text hiding (map, all)
 
 import Data.Maybe (isJust)
 
@@ -50,7 +50,7 @@ setZmodF mp g = g {zmodf = mp}
 isContextOpen :: GState Bool
 isContextOpen = do
     env <- get
-    return $ (isJust $ getZmodN env) || (isJust $ getZmodF env)
+    return $ isJust (getZmodN env) || isJust (getZmodF env)
 
 {-
 data GEnv = GEnv { typeEnv :: TEnv
@@ -59,32 +59,80 @@ data GEnv = GEnv { typeEnv :: TEnv
                  , zmodf :: Maybe (PolyMulti Frac) }
 -}
 
+irred'' :: Val -> ErrorT GState Val
+irred'' (VCPoly p) = if polyIsZx p
+                        then case monoPolyToZx p of
+                            Just (p' , i) -> return $ VBool $ (irred' p')
+                            Nothing       -> throwError "Runtime error : Argument to irred should be a polinomian with a single varable and coeffs in Z"
+                        else throwError "Runtime error : Argument to irred should be a polinomian with a single varable and coeffs in Z"
+irred'' a          = return $ (VVar $ pack "builtin.irred") `VApp` (VVar $ pack "p")
+
+irredType = (pack "irred", TCPoly ~> TBool)
+irredVal  = (pack "irred", VLam (pack "p") TCPoly $ \p ->  
+                            irred'' p)
+
+factor'' :: Val -> ErrorT GState Val
+factor'' (VCPoly p) = if polyIsZx p
+                        then case monoPolyToZx p of
+                            Just (p' , i) -> return $ VList $ listToList $ map (VCPoly . (flip zxToMultiPoly) i) (factor' p')
+                            Nothing       -> throwError "Runtime error : Argument to factor should be a polinomian with a single varable and coeffs in Z"
+                        else throwError "Runtime error : Argument to factor should be a polinomian with a single varable and coeffs in Z"
+factor'' a          = return $ (VVar $ pack "builtin.factor") `VApp` (VVar $ pack "p")
+
+factorType = (pack "factor", TCPoly ~> TList)
+factorVal  = (pack "factor", VLam (pack "p") TCPoly $ \p ->  
+                            factor'' p)
+
+-- Maybe this should fail, or we just check if this is empty list
+listToEvalInp :: [Val] -> [(PolyMulti (Complex Frac), Complex Frac)]
+listToEvalInp []       = []
+listToEvalInp [x]      = []
+listToEvalInp (x:y:xs) = case (x,y) of
+    (VCPoly p, VCNum n) -> (p , n) : listToEvalInp xs
+    (a       , b)       -> listToEvalInp xs
+
+eval'' :: Val -> Val -> ErrorT GState Val
+eval'' (VList l) (VCPoly p) = let l' = listToEvalInp $ listToList' l in
+                                if l' /= [] && all ((`loneVarOf` p) . fst) l' 
+                                    then return $ VCNum $ eval' l' p
+                                    else throwError "Runtime error : List given to eval must have the appopriate format : TODO"
+eval'' a          b         = return $ ((VVar $ pack "builtin.eval") `VApp` (VVar $ pack "ls")) `VApp` (VVar $ pack "p")
+
+evalType = (pack "eval", TList ~> TCPoly ~> TCNum)
+evalVal  = (pack "eval", VLam (pack "ls") TList $ \ls -> 
+                        return $ VLam (pack "p") TCPoly $ \p -> 
+                            eval'' ls p)
+
 deriv'' :: Val -> Val -> ErrorT GState Val
 deriv'' (VCPoly i) (VCPoly p) = if loneVarOf i p
-                                    then return $ VCPoly $ derivativeVar i p
+                                    then return $ 
+                                         VCPoly $ 
+                                         derivativeVar i p
                                     else throwError "Runtime error : Variable to take derivative in must be a single variable thats present in the polinome"
-deriv'' a         b          = return $ VApp (VApp (VVar $ pack "builtin.derivative") (VVar $ pack "x")) (VVar $ pack "p")
+deriv'' a         b          = return $ 
+                                ((VVar $ pack "builtin.derivative") `VApp` (VVar $ pack "x")) `VApp` (VVar $ pack "p")
 
-derivType = (pack "derivative",TArr TCPoly $ TArr TCPoly TCPoly)
-derivVal  = (pack "derivative", VLam (pack "x") TCPoly $ \x -> 
-                        return $ VLam (pack "p") TCPoly $ \p -> 
+derivType = (pack "derivative", TCPoly ~> TCPoly ~> TCPoly)
+derivVal  = (pack "derivative", VLam (pack "x") TCPoly $ \x ->
+                        return $ VLam (pack "p") TCPoly $ \p ->
                             deriv'' x p)
 
 emptyEnv :: GEnv
-emptyEnv = GEnv [derivType] 
-                [derivVal] Nothing Nothing
+emptyEnv = GEnv [derivType, evalType, factorType, irredType]
+                [derivVal, evalVal, factorVal, irredVal] Nothing Nothing
 
 type GState = State GEnv
 
 type GStateT = StateT GEnv
 
-
+{-
 instance Monoid (ExceptT String GState String) where
     mempty = return ""
-    mappend a b = do
+    mappend = (<>)
+
+instance Semigroup (ExceptT String GState String) where
+    a <> b = do
         a' <- a
         b' <- b
         return $ a' ++ b'
-
-instance Semigroup (ExceptT String GState String) where
-    (<>) = mappend
+-}

@@ -88,6 +88,16 @@ evalTerm env' = \case
         e' <- evalTerm env' e
         evalTerm ((n, e'):env') u
     TLit l     -> return $ VLit l
+    -- We know u is of type list
+    TListCons e u -> do --NOT lazy list
+        e' <- evalTerm env' e
+        u' <- evalTerm env' u
+        return $ case u' of
+            (VLit (LList Nil)) -> VList $ Cons e' Nil
+            (VLit (LList l))   -> VList $ Cons e' l
+    {-
+    -}
+    --return $ VLit $ LList $ Cons e u        
     TPrefix op e -> do
         e' <- evalTerm env' e
         return $ case op of
@@ -95,12 +105,14 @@ evalTerm env' = \case
                         (VCNum  i) -> VCNum  $ negate i
                         (VCPoly i) -> VCPoly $ negate i
                         (a       ) -> VPrefix op a
+{-
             Factor -> case e' of
-                        (VCPoly i) -> VCPoly $ factor i
+                        (VCPoly i) -> VCPoly $ i--factor i
                         (a       ) -> VPrefix op a
             Irred  -> case e' of
                         (VCPoly i) -> VCPoly $ irred i
                         (a       ) -> VPrefix op a
+-}
     -- e1 and e2 are CNum
     TBinFieldOp op f e u -> do
         e' <- evalTerm env' e

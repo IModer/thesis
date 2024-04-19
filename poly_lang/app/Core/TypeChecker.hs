@@ -21,6 +21,13 @@ typeCheck env = \case
     TLit (LCPoly _)-> return TCPoly
     TLit (LBool _) -> return TBool
     TLit (LTop _)  -> return TTop
+    TLit (LList _) -> return TList
+    TListCons e u  -> do
+        t1 <- typeCheck env e
+        t2 <- typeCheck env u
+        if t2 == TList 
+            then return TList
+            else throwError $ "TypeError :\n(::) cannot be called with : " ++ show t1 ++ " and " ++ show t2
     TVar x         -> do
         env' <- get
         case lookup x env of
@@ -92,12 +99,14 @@ typeCheck env = \case
             Neg    -> if hasEuclid e' 
                         then return e' 
                         else throwErrorLift $ cannotBeCalledWithError' e' op
+{-
             Factor -> if isPoly e'
                         then return e'
                         else throwErrorLift $ cannotBeCalledWithError' e' op
             Irred  -> if isPoly e'
                         then return TBool
                         else throwErrorLift $ cannotBeCalledWithError' e' op
+-}
 
 cannotBeCalledWithError :: Type -> Type -> BinOp -> String
 cannotBeCalledWithError t1 t2 op = "TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show t1 ++ " and " ++ show t2

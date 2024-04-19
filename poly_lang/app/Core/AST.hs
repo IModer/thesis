@@ -6,7 +6,7 @@ module Core.AST where
 import Core.Types
 import Data.Euclidean (rem, Euclidean(..), Field(..))
 import Data.Semiring
-import Data.Text hiding (unwords)
+import Data.Text hiding (unwords, foldr)
 import Control.Monad.State
 import Control.Monad.Except
 import Prelude hiding (rem)
@@ -33,6 +33,18 @@ data GEnv = GEnv { typeEnv :: TEnv
                  , zmodn :: Maybe (Complex Frac)
                  , zmodf :: Maybe (PolyMulti (Complex Frac)) }
 
+data List a = Nil | Cons a (List a)
+    deriving (Eq, Show)
+
+instance Foldable List where
+    foldr f b Nil         = b
+    foldr f b (Cons x xs) = f x (foldr f b xs) 
+
+listToList :: [a] -> List a
+listToList = foldr Cons Nil
+
+listToList' :: List a -> [a]
+listToList' = foldr (:) []
 
 data TTm
     = TVar    Name
@@ -41,6 +53,7 @@ data TTm
     | TLet    Name TTm  TTm
     | TIfThenElse TTm TTm TTm
     | TLit    Literal
+    | TListCons TTm TTm
     | TBinPred   BinOp PredType TTm TTm
     | TBinOpBool BinOp BoolOp TTm TTm
     | TBinFieldOp  BinOp FieldOp TTm TTm
@@ -50,14 +63,14 @@ data TTm
 
 data PrefixOp
     = Neg
-    | Factor
-    | Irred
+--    | Factor
+--    | Irred
 
 instance Show PrefixOp where
     show = \case
         Neg    -> "-"
-        Factor -> "factor"
-        Irred  -> "irred"
+--        Factor -> "factor"
+--        Irred  -> "irred"
 
 -- Abs
 data BinOp
@@ -102,6 +115,7 @@ data Type
     | TCPoly
     | TBool
     | TTop
+    | TList
     deriving (Eq)
 
 instance Show Type where
@@ -113,6 +127,7 @@ instance Show Type where
         TCPoly   -> "CPoly"
 --        TPoly    -> "Poly"
         TTop     -> "Top"
+        TList    -> "List"
 
 showTTm :: TTm -> String
 showTTm = \case
@@ -125,6 +140,8 @@ showTTm = \case
     TLit (LCNum l)      -> show l
     TLit (LCPoly l)     -> show l
     TLit (LTop _)       -> "tt"
+    TLit (LList l)      -> show $ listToList' l
+    TListCons t u       -> unwords [showTTm t,"::",showTTm u]
     TPrefix op t        -> unwords [show op ,showTTm t]
     TBinPred op _ t u   -> unwords [showTTm t,show op,showTTm u]
     TBinOpBool op _ t u -> unwords [showTTm t,show op,showTTm u]
@@ -142,6 +159,7 @@ data Literal
     | LCPoly (PolyMulti (Complex Frac))
     | LBool Bool
     | LTop ()
+    | LList (List Val)
 
 data Val
     = VVar Name
@@ -157,6 +175,33 @@ data Val
     | VBinRingOp BinOp RingOp Val Val
     | VBinFieldOp  BinOp FieldOp Val Val
 
+showVal :: Val -> String
+showVal = \case
+    VVar n              -> unpack n
+    VApp t u            -> unwords ["(",showVal t,showVal u,")"]
+    VLam n t e          -> show t -- "Cannot show function type"
+    VLit (LBool l)      -> show l
+    VLit (LCNum l)      -> show l
+    VLit (LCPoly l)     -> show l
+    VLit (LTop _)       -> "tt"
+    VLit (LList l)      -> show $ listToList' l
+    VIfThenElse b t u   -> unwords ["if",showVal b,"then",showTTm t,"else",showTTm u]
+    VPrefix op t        -> unwords [show op ,showVal t]
+    VBinPred op _ t u   -> unwords [showVal t,show op,showVal u]
+    VBinOpBool op _ t u -> unwords [showVal t,show op,showVal u]
+    VBinEucOp op _ t u  -> unwords [showVal t,show op,showVal u]
+    VBinRingOp op _ t u -> unwords [showVal t,show op,showVal u]
+    VBinFieldOp  op _ t u -> unwords [showVal t,show op,showVal u]
+
+instance Show Val where
+    show = showVal
+
+pattern VList :: List Val -> Val
+pattern VList l = VLit (LList l)
+
+--pattern TList :: List TTm -> TTm
+--pattern TList l = TLit (LList l)
+
 pattern VBool :: Bool -> Val
 pattern VBool b = VLit (LBool b)
 
@@ -168,8 +213,13 @@ pattern VPoly :: PolyMulti Frac -> Val
 pattern VPoly n = VLit (LPoly n)
 -}
 
+(~>) :: Type -> Type -> Type
+(~>) = TArr 
+
+infixr 7 ~>
+
 tMod :: TTm -> TTm -> TTm
-tMod t u = TBinEucOp Mod rem t u
+tMod = TBinEucOp Mod rem
 
 pattern VCNum :: Complex Frac -> Val
 pattern VCNum n = VLit (LCNum n)

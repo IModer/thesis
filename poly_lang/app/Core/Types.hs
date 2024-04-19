@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DataKinds, TypeFamilies, UndecidableInstances #-}
 
 module Core.Types where
 
@@ -23,11 +23,22 @@ import qualified Data.Poly.Semiring as PS
 -- Show Poly
 import Data.List (intersperse, maximumBy, nub)
 import qualified Data.Vector.Generic as G
+import qualified Data.Vector.Generic.Sized as SG
 import qualified Data.Vector.Unboxed.Sized as SU
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as VU
 
 import Data.Finite
+--import GHC.TypeNats
+import Data.Type.Bool (If)
+import GHC.TypeLits
+import Data.Proxy (Proxy(..))
+import Data.Bifunctor (first)
+
+-- Factor
+import qualified Data.IntMap as IM
+import Factor.Bz
+import qualified Factor.Zx as Zx
 
 -- Frac is a boxed Rational we can have custom Show
 
@@ -93,6 +104,18 @@ instance Field Frac
 
 -- Complex is a custom Data.Complex so we can have custom show 
 -- and so we dont have RealFloat (https://hackage.haskell.org/package/complex-generic would do this but it isnt maintained) 
+
+complexFracIsZ :: Complex Frac -> Bool
+complexFracIsZ ((Box r) :+ c) = c == zero && b == one
+    where
+        a = numerator r
+        b = denominator r
+
+complexFracToZ :: Complex Frac -> Integer
+complexFracToZ ((Box r) :+ c) = a
+    where
+        a = numerator r
+        b = denominator r
 
 data Complex a = !a :+ !a
     deriving (Eq)
@@ -327,7 +350,7 @@ ifMonoWhichVar (BoxP p) = let a = unMultiPoly p in
 --numOfCoeffs :: PolyMulti a -> V.Vector (V.Vector Word, a)
 numOfCoeffs (BoxP p) = let a = unMultiPoly p in
                 let usa =  a in
-                usa
+                V.map (complexFracIsZ . snd) usa
 
 loneVar :: (Eq a, Semiring a) => PolyMulti a -> Bool
 loneVar (BoxP p) = let a = unMultiPoly p in
@@ -338,7 +361,15 @@ loneVar (BoxP p) = let a = unMultiPoly p in
 whichVars :: PolyMulti a -> [Integer]
 whichVars (BoxP p) = let a = unMultiPoly p in
                             let usa = V.map (V.convert . SU.fromSized . fst) a in
-                            nub $ V.toList $ V.concat $ V.toList $ V.filter (not . V.null) $ V.map (V.map fst . V.filter ((>0) . snd) . V.zip (V.fromList [0..26])) usa
+                            nub $
+                            V.toList $
+                            V.concat $
+                            V.toList $
+                            V.filter (not . V.null) $ 
+                            V.map ( V.map fst .
+                                    V.filter ((>0) . snd) .
+                                    V.zip (V.fromList [0..26]))
+                            usa
                             --V.map (fromMaybe 0 . V.elemIndex True) $ V.map (V.map (>0)) usa
 
 -- x is a lose variable of P, meaning P has x in it and x is just a variable with coeff 1
@@ -354,9 +385,8 @@ toMonoPoly (BoxP p) =  let a = unMultiPoly p in
                         if null $ whichVars $ BoxP p 
                             then (PS.toPoly $ V.fromList c , Nothing)
                             else 
-                                let [i] = whichVars $ BoxP p in -- if there are multiple variables we fail here 
+                                let [i] = whichVars $ BoxP p in -- if there are multiple variables we fail here
                                 (PS.toPoly $ V.fromList c , Just i)
-
 
 fromMonoPoly :: (Eq a, Semiring a) => PolyMono a -> Maybe Integer -> PolyMulti a
 fromMonoPoly p (Just i) = let a = PS.unPoly p in
@@ -364,7 +394,7 @@ fromMonoPoly p (Just i) = let a = PS.unPoly p in
                         let b = V.map (\(x, n) -> (ls n,x)) $ V.zip a (V.fromList [0..(fromIntegral $ V.length a)]) in
                         BoxP $ toMultiPoly b
 fromMonoPoly p Nothing  = let a = PS.unPoly p in
-                        let ls = unsafe (SU.fromList $ wzeros :: Maybe (SU.Vector 26 Word)) in
+                        let ls = unsafe (SU.fromList wzeros :: Maybe (SU.Vector 26 Word)) in
                         let b = V.map (\(x, n) -> (ls,x)) $ V.zip a (V.fromList [0..(fromIntegral $ V.length a)]) in
                         BoxP $ toMultiPoly b
 
@@ -376,8 +406,8 @@ testPoly =  let Just x = stringToPoly "X" in
             let Just tenthird = fracToPoly (10 %% 3) in
                 --tenthird * x * x * x * z * z + four * {-y*-} x + x + four
                 --x * x + tenthird * x + four + y
-                --x * x * z + four + z
-                x + four
+                x * x + four * four + z
+                --x + four
 
 testPoly2 :: PolyMulti Frac
 testPoly2 =  let Just x = stringToPoly "X" in
@@ -387,6 +417,21 @@ testPoly2 =  let Just x = stringToPoly "X" in
             let Just tenthird = fracToPoly (10 %% 3) in
                 --tenthird * x * x * x * z * z + four * {-y*-} x + x + four
                 four * x * x * x * x * x + four * x * four * x + x + four
+
+testCPoly :: PolyMulti (Complex Frac)
+testCPoly = let Just x = stringToComplexPoly "X" in x
+
+testCPoly2 :: PolyMulti (Complex Frac)
+testCPoly2 = let Just x = stringToComplexPoly "X" in
+             let Just y = stringToComplexPoly "Y" in
+             let Just z = stringToComplexPoly "Z" in
+             let Just four = complexToComplexPoly (4 %% 1 :+ zero) in
+             let Just tenthird = complexToComplexPoly (10 %% 3 :+ zero) in
+             --x * x + four * x * z + tenthird
+             four * x * x * x * x * x + four * x * four * x + x + four
+
+testComplex :: Complex Frac
+testComplex = 4 %% 3 :+ zero
 
 newtype EuclidException = EucExc String
     deriving (Show, Eq)
@@ -410,8 +455,24 @@ complexToPoly :: Complex Frac -> Maybe (PolyMulti Frac)
 
 irred = undefined
 
-factor = undefined
+ls :: Finite 26 -> Frac -> SG.Vector V.Vector 26 Frac
+ls i f = unsafe $ SG.fromList $ replaceAtIndex (toInteger i) f $ replicate 26 $ 0 %% 1
 
+--subst
+--subst
+
+-- eval X :: 1 :: Z :: 0 :: [] (X*X+2*X+Z) = 1*1+2*1+0
+--         these should be loneVars of this
+--              |                  |
+--              V                  V
+eval' :: (Semiring a, Eq a) => [(PolyMulti a, a)] -> PolyMulti a -> a
+eval' xs (BoxP p) = eval p ((SG.//) zeros (is xs))
+    where
+        is :: [(PolyMulti a, a)] -> [(Finite 26, a)]
+        is = map (first (finite . head . whichVars))
+
+        zeros :: Semiring a => SG.Vector V.Vector 26 a
+        zeros = unsafe $ SG.fromList $ replicate 26 one
 
 deriv' :: (Eq a, Semiring a) => Finite 26 -> PolyMulti a -> PolyMulti a
 deriv' k (BoxP x) = BoxP $ deriv k x
@@ -420,10 +481,55 @@ derivativeVar :: (Eq a, Semiring a) => PolyMulti a -> PolyMulti a -> PolyMulti a
 derivativeVar x p = let i = finite $ head $ whichVars x in deriv' i p
 
 derivative :: (Eq a, Semiring a) => Complex Frac -> PolyMulti a -> PolyMulti a
-derivative k x = deriv' (finite k') x
-    where 
+derivative k = deriv' (finite k')
+    where
         ((Box a) :+ _) = k
         k' = numerator a
+
+-- Factor
+
+testPolyZx :: Zx.Zx
+testPolyZx = (x `m` x) `s` four
+    where
+        x = Zx.variable
+        m = Zx.multiply
+        p = Zx.add
+        s = (. Zx.negate) . Zx.add
+        four = Zx.constant 4
+
+polyIsZx :: PolyMulti (Complex Frac) -> Bool
+polyIsZx (BoxP p) = let a = unMultiPoly p in
+                let usa = a in
+                V.and $ V.map (complexFracIsZ . snd) usa
+
+-- Ha monoPoly és az együtthatók Z be vannak akkor
+-- átkonvertáljuk
+monoPolyToZx :: PolyMulti (Complex Frac) -> Maybe (Zx.Zx, Maybe Integer)
+monoPolyToZx p =
+    if getPolyNumOfVariables p == 1 && polyIsZx p
+        then Just (p'', i) -- convert
+        else Nothing
+    where
+        (p', i) = toMonoPoly p
+        --p' = map (uncurry Zx.Monomial) $ zip ([0..] :: [Int]) $ map complexFracToZ $ V.toList $ PS.unPoly $ fst $ toMonoPoly p
+        p'' = Zx.fromMonomials $
+            zipWith Zx.Monomial ([0 .. ] :: [Int]) $
+            map complexFracToZ $
+            V.toList $
+            PS.unPoly
+            p'
+
+zxToMultiPoly :: Zx.Zx -> Maybe Integer -> PolyMulti (Complex Frac)
+zxToMultiPoly zx = fromMonoPoly p
+    where
+        p = foldr ((+) . (\(i,a) -> PS.monomial (fromIntegral i) (a %% 1 :+ zero))) zero $
+            IM.toList $
+            Zx.coeffMap 
+            zx
+
+factor' = map fst . snd . factor
+
+irred' = irreducible 
 
 {-
 derivative :: (Eq a, Semiring a) => PolyMulti a -> PolyMulti a
@@ -433,3 +539,27 @@ derivative x= go (whichVars x) x
         go [] x' = x'
         go (i:is) x' = go is (deriv' (finite i) x')
 -}
+
+-- forall n . UMultiPoly n a -> UMultiPoly n+m a 
+up :: forall n m a . (Eq a, Semiring a, KnownNat n, KnownNat m) => Proxy m -> VMultiPoly n a -> VMultiPoly (n + m) a
+up m p = let v = unMultiPoly p in toMultiPoly $ V.map (first (SU.++ zeros)) v
+    where
+        ni :: Int
+        ni = fromIntegral $ natVal m
+        zeros :: (KnownNat m) => SU.Vector m Word  
+        zeros = fromJust $ SU.fromList $ replicate ni 0
+
+type family Max (a :: Nat) (b :: Nat) :: Nat where
+  Max 0 b = b
+  Max a b = If (a <=? b) b a
+
+type MultiPolyOp a = forall n . (KnownNat n) => VMultiPoly n a -> VMultiPoly n a -> VMultiPoly n a 
+
+upToSame :: (KnownNat m, KnownNat n, Semiring a, Eq a) => Proxy n -> Proxy m -> Proxy (Max m n) -> VMultiPoly n a -> VMultiPoly m a -> MultiPolyOp a -> VMultiPoly (Max m n) a
+upToSame a b m f g op = if bi == ai 
+                    then undefined --let g' = up Proxy g in op f g'
+                    else undefined --let f' = up Proxy f in _
+    where
+        --mi = natVal m
+        ai = natVal a
+        bi = natVal b

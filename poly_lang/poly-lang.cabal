@@ -86,7 +86,9 @@ executable poly-lang
                         semirings >= 0.6,
                         directory,
                         clock,
-                        finite-typelits
+                        finite-typelits,
+                        factor,
+                        containers
     -- transformers
 
     -- Directories containing source files.

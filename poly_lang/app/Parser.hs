@@ -18,7 +18,7 @@ import Data.Functor
 import Text.Megaparsec
 import Text.Megaparsec.Debug (dbg)
 import Control.Monad.Combinators.Expr
-import Data.Text hiding (elem, empty, filter, map)
+import Data.Text hiding (elem, empty, filter, map, foldr)
 
 import qualified Text.Megaparsec.Char       as C
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -35,8 +35,8 @@ data TTm
     | TLit Literal          -|
 
 --  pLam
-    | TLam Name Type TTm       -|
 --  pLet
+    | TLam Name Type TTm       -|
     | TLet Name TTm TTm        -|
 
 --  Expr amiket a makeExprParserrel meg lehetne oldani
@@ -76,8 +76,8 @@ parens p   = char '(' *> p <* char ')'
 
 keywords :: [Name]
 keywords = ["\\", "let", "in", "def"
-            , "mod", "div", "factor"
-            , "irred"
+            , "mod", "div"
+--            , "factor", "irred"
             , "var" 
             ,"if", "then", "else"
             , "open", "close" , "Zmod"
@@ -102,12 +102,26 @@ pIdent = try $ do
 pVariable :: Parser TTm
 pVariable = TVar <$> pIdent
 
+{-
+pNil :: Parser TTm
+pNil = do
+    pKeyword "[]"
+    return $ TLit $ LList Nil
+-}
+
+pFancyList :: Parser TTm
+pFancyList = do
+    ls <- between (symbol "[") (symbol "]") (pTm `sepBy` symbol ",")
+    return $ foldr TListCons (TLit $ LList Nil) (listToList ls)
+
 pLit :: Parser TTm
-pLit = try $ choice 
+pLit = try $ choice
     [ pInt <?> "integer literal"
     , pBool <?> "bool literal"
     , pCompI <?> "complex literal"
-    , pTT <?> "tt literal"]
+    , pTT <?> "tt literal"
+--    , pNil <?> "list literal"
+    , pFancyList <?> "fancy list literal"]
 
 pTT :: Parser TTm
 pTT = do
@@ -126,8 +140,8 @@ pInt = do
 
 pBool :: Parser TTm
 pBool = choice
-        [ TLit (LBool True)  <$ symbol "true"
-        , TLit (LBool False) <$ symbol "false"]
+        [ TLit (LBool True)  <$ symbol "True"
+        , TLit (LBool False) <$ symbol "False"]
 
 operatorTable :: [[Operator Parser TTm]]
 operatorTable =
@@ -137,8 +151,9 @@ operatorTable =
     ] ,
     [
       prefix  "-"          (TPrefix Neg   )
-    , prefix  "factor"     (TPrefix Factor)
-    , prefix  "irred"      (TPrefix Irred )
+--    , prefix  "factor"     (TPrefix Factor)
+--    , prefix  "irred"      (TPrefix Irred )
+    , binaryR "::"         (TListCons)
     ] ,
     [
       binaryL "*"   (TBinRingOp Times (*)  )
@@ -226,6 +241,7 @@ pBaseType = choice
     , symbol "CPoly" $> TCPoly
     , symbol "Bool"  $> TBool
     , symbol "Top"   $> TTop
+    , symbol "List"  $> TList
     , parens pType
     ]
 

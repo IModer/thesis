@@ -4,7 +4,7 @@ import System.IO
 import System.Directory
 import System.Clock
 import Control.Monad (unless)
-import Control.Monad.State.Lazy  --StateT
+import Control.Monad.State.Lazy  -- StateT
 import Control.Monad.Except      -- ExceptT
 import Data.Functor.Identity
 
@@ -94,6 +94,18 @@ evalFile filename cs = case parseStringFile filename $ pack cs of
     Left a -> return $ errorBundlePretty a
     Right tms_defs -> handleError' $ unlines <$> mapM handle' tms_defs
 {-
+    map 
+        (either id id)
+        (case Prelude.break 
+            (\x -> case x of 
+                Right _ -> False;
+                Left _ -> True) $ 
+                map (\x -> if x == 0 
+                        then Left 0 
+                        else Right x) 
+                [1,2,3,0,0,1] of 
+                    (x,(y:_)) -> x ++ [y]; 
+                    (x,[]) -> x)
 
     takeIsLeft a ++ 
     maybe [] ((: []) . fst) $ uncons $ dropIsLeft a
