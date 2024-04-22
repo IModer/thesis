@@ -189,12 +189,12 @@ postfix n f = Postfix (f <$ symbol n)
 pExprT :: Parser TTm
 pExprT = try $ choice 
     [ 
-      dbg "parens expr"  (parens pExpr) <?> "parenthesized expression"
-    , dbg "literal"      pLit         <?> "literal"
-    , dbg "variable"     pVariable    <?> "variable"
-    , dbg "function"     pLam         <?> "function"
-    , dbg "let expr"     pLet         <?> "let expression"
-    , dbg "if  expr"     pIfThenElse  <?> "if_then_else expression"
+      {-dbg "parens expr" -} (parens pExpr) <?> "parenthesized expression"
+    , {-dbg "literal"     -} pLit         <?> "literal"
+    , {-dbg "variable"    -} pVariable    <?> "variable"
+    , {-dbg "function"    -} pLam         <?> "function"
+    , {-dbg "let expr"    -} pLet         <?> "let expression"
+    , {-dbg "if  expr"    -} pIfThenElse  <?> "if_then_else expression"
     ]
 
 pExpr :: Parser TTm
@@ -267,9 +267,9 @@ data CommandLineCommand
     | LoadFileCL [String]
 
 pCommandLineCommand :: [String] -> CommandLineCommand
-pCommandLineCommand ("load":files)   = LoadFileCL files
-pCommandLineCommand ("help":_)       = PrintHelpCL
-pCommandLineCommand ("docs":topic:_) = 
+pCommandLineCommand ("load":files) = LoadFileCL files
+pCommandLineCommand ["help"]       = PrintHelpCL
+pCommandLineCommand ["docs",topic] = 
     let e_t = parse pInfoTopic "(cmd)" $ pack topic in
         case e_t of
             Left _ -> NoSuchCommandCl
@@ -338,11 +338,27 @@ isFileNameChar c = isAlphaNum c || c `elem` chars
 
 data Topic
     = MetaTopic
+    | Polinomials
+    | Lists
+    | Functions
+    | Commands
+    | TopDefs
+    | Numbers
+    | Bools
     | Dummy
-    deriving Show
+    deriving (Show, Eq, Enum, Bounded)
 
 pInfoTopic :: Parser Topic
-pInfoTopic = undefined -- TODO
+pInfoTopic = choice [ Dummy <$ symbol "Dummy"
+                    , MetaTopic <$ symbol "ListTopics"
+                    , Polinomials <$ symbol "Polinomials"
+                    , Lists <$ symbol "Lists"
+                    , Functions <$ symbol "Functions"
+                    , Commands <$ symbol "Commands"
+                    , TopDefs <$ symbol "TopDefs"
+                    , Numbers <$ symbol "Numbers"
+                    , Bools <$ symbol "Bools"
+                    ] <?> "a valid topic, to see all topics run `:i ListTopics`"
 
 pLoadFileCommand :: Parser Command
 pLoadFileCommand = do
