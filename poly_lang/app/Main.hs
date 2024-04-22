@@ -18,31 +18,36 @@ import Core.AST
 import Core.Types
 import Lib
 import Parser
-import Data.Text hiding (length, map, unlines, uncons)
+import Data.Text hiding (length, map, unlines, uncons, foldl)
 
 main :: IO ()
 main = do
     args <- getArgs
-    env <- handleArgs args
-    runRepl env
+    handleArgs args
+    --env <- handleArgs args
+--    runRepl env
 
-handleArgs ::  [String] -> IO GEnv
+handleArgs ::  [String] -> IO ()
+handleArgs [] = do
+    putStrLn welcome
+    runRepl emptyEnv
 handleArgs xs = case pCommandLineCommand xs of
     PrintHelpCL      -> do
         putStrLn help
-        return emptyEnv
+--        return emptyEnv
     NoSuchCommandCl  -> do
         putStrLn "No such command"
         putStrLn help
-        return emptyEnv
+--        return emptyEnv
     GetInfoCL topic  -> do
         putStrLn $ helpOnTopic topic
-        return emptyEnv
+--        return emptyEnv
     -- Ezt lehet ki lehetne absztrahálni
     LoadFileCL files -> do
         (logs, env) <- runStateT (loadFiles files) emptyEnv
         forM_ logs putStrLn
-        return env
+        putStrLn welcome
+        runRepl env
 
 -- List of filenames, we open each one and we parse the contents
 loadFiles :: [String] -> GStateT IO [String]
@@ -61,17 +66,109 @@ loadFiles filenames = do
                 else do
                     return $ "There is no such file : " ++ filename
 
+welcome :: String
+welcome = "Welcome to poly_lang, a basic computer algebra system\
+            \ focused on polinomials. To get started run the command\
+            \ `:i ListTopics` then `:i <topic>` to check out whatever\
+            \ topic interests you."
+
 help :: String
-help = "Usage : poly_lang.exe <command>   \n\
+help = "Usage : poly_lang.exe or poly_lang.exe <command>   \n\
                       \Commands: \tload <file1> [<file2> ...] - loads the specified files\n\
                       \ \t\thelp - prints this help\n\
                       \ \t\tdocs <topic> - Prints help on the specified topic, use `docs topic` to print out the available topics"
 
 helpOnTopic :: Topic -> String
 helpOnTopic = \case
-    MetaTopic -> "Current topics: \n\t\tDummy\n\t\ttopic"
-    Dummy     -> "This is the docs of Dummy. Its me i am the dummy :D"
-    _         -> "No such topic, run `docs topic` to see avaliable topics\n"
+    MetaTopic   -> "Topics: " ++ alltopicsPretty 
+    Dummy       -> "\n\nThis is the docs of Dummy. Its me i am the dummy :D"
+    Polinomials -> "\n\nPolinomals in poly_lang represent complex polinomials.\n\
+                    \ To use polinomials you have to declare variable with\
+                    \ the `var` keyword followed by a capital english letter\
+                    \. After that you can construct polinomals using the\
+                    \ letter you declared as a variable. Examples: \n\n\
+                    \ \tpoly> var X\n\
+                    \ \tX is now a polinomial variable\n\
+                    \ \tpoly> X * X\n\
+                    \ \t1 * X^2"
+    Lists       -> "\n\nLists are polymorphic lists that can contain any Term (Program)\
+                    \ but cannot be destructed (indexed, or iterated). They can be\
+                    \ constructed with the usual list syntax (eg.: [1,2,3]) or with\
+                    \ appending elements to the empty list [] (e.: 1 :: 2 :: [])\
+                    \ Examples: \n\n\
+                    \ \tpoly> 1 :: True :: []\n\
+                    \ \t[1,True]\n\
+                    \ \tpoly> factor (X * X - 4)\n\
+                    \ \t[1 * X + -2,1 * X + 2]\n\
+                    \ \tpoly> :t []\n\
+                    \ \tList"
+    Functions   -> "Fuctions can be created with the lambda symtax: \n\n\
+                    \ \t \\Name : Type -> Body\n\n\
+                    \where the Name is the name that the bound varable or \"input\" of\
+                    \ the funtion will have inside the Body and Type is the type of it.\
+                    \ They can be \"called\" or applied with writing their arguments\
+                    \ after the function. Functions can be nested and if they have the\
+                    \ same name for the bound variable the inner name will shadow the\
+                    \ outer one. You can also ignore the Name if you write `_` but you\
+                    \ will still have to write its Type and apply a Term of that type\
+                    \ to call it.\
+                    \ Examples: \n\n\
+                    \ \tpoly> \\x : Bool . x\n\
+                    \ \t(\\ x : Bool . x )\n\
+                    \ \tpoly> (\\x : Bool . x) True\n\
+                    \ \tTrue\n\
+                    \ \tpoly> (\\_ : Bool . 3) True\n\
+                    \ \t3"
+    Commands    -> "The available commands are :\n\
+                   \\t:h or :help - Prints help message\n\
+                   \\t:q or :quit - Exits the program\n\
+                   \\t:i <topic> or :into <topic> - Prints information on a topic\n\
+                   \\t:b <tm> or :timeit <tm> - Tries to run the Term tm\
+                   \ and measures how much time it took\n\
+                   \\t:t <tm> or :type <tm> - Tries to typecheck the Term tm\n\
+                   \\t:l <f> [<f2>]* or :load <f> [<f2>]* - Loads the given files"
+    TopDefs     -> "The available top level definitions are :\n\
+                    \\tvar - Declares a capital letter a poolinomial variable\n\
+                    \\tdef - Declares a name to have synonyms with the given value\n\
+                    \\topen - Opens a context with a Number or Polinomial,\ 
+                    \ while the context is open all operation are performed modulo\
+                    \ the given value.\n\
+                    \\tclose - If there is a context open closes it \n\
+                    \ Examples: \n\n\
+                    \ \tpoly> def x := True\n\
+                    \ \tsaved x : Bool\n\
+                    \ \tpoly> x\n\
+                    \ \tTrue\n\
+                    \ \tpoly> var X\n\
+                    \ \tX is now a polinomial variable\n\
+                    \ \tpoly> open 3\n\
+                    \ \tContext is now open with : 3\n\
+                    \ \tpoly> 3 + 2\n\
+                    \ \t2\n\
+                    \ \tpoly> close\n\
+                    \ \tSuccessfully closed the context"
+    Numbers     -> "Number represent complex number.\
+                    \They are declared and used in the usual way:\
+                    \ Examples: \n\n\
+                    \ \tpoly> 3\n\
+                    \ \t3\n\
+                    \ \tpoly> 142 / 14\n\
+                    \ \t71/7\n"
+    Bools       -> "Bools are used in the usual ways:\
+                    \ Examples: \n\n\
+                    \ \tpoly> True | False\n\
+                    \ \tTrue\n\
+                    \ \tpoly> True & False\n\
+                    \ \tFalse\n\
+                    \ \tpoly> if True then 32 else 2\n\
+                    \ \t32\n"
+    _           -> "No such topic, run `docs topic` to see avaliable topics\n"
+    where
+        alltopicsPretty = foldMap ((++) "\n\t\t" . show) alltopics
+
+        alltopics :: [Topic]
+        alltopics =  enumFrom (toEnum 0)
+
 
 read_ :: IO String
 read_ = do
