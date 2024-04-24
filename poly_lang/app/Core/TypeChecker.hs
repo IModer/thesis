@@ -47,32 +47,32 @@ typeCheck env = \case
             then
                 if  t' == u'
                     then return t'
-                    else throwErrorLift $ couldntMatchTypeError t' u' "Both branches of If should have the same return type"
-            else throwErrorLift $ couldntMatchTypeError b' TBool "\nCondition to If should have type Bool"
+                    else throwError $ couldntMatchTypeError t' u' "Both branches of If should have the same return type"
+            else throwError $ couldntMatchTypeError b' TBool "\nCondition to If should have type Bool"
     TLam x t e     -> do
         t' <- typeCheck ((x,t):env) e
-        return $ TArr t t'
+        return $ t ~> t'
     TApp e1 e2     -> do
         t1 <- typeCheck env e1
         t2 <- typeCheck env e2
         case t1 of
             (TArr t t') ->  if t == t2
                             then return t'
-                            else throwErrorLift ("TypeError :\nCould not match type : " ++ show t ++ "\n\t\twith : " ++ show t2)
-            _                     -> throwErrorLift ("TypeError :\nCannot apply type : " ++ show t2 ++ "\n\t       to : " ++ show t1)
+                            else throwError ("TypeError :\nCould not match type : " ++ show t ++ "\n\t\twith : " ++ show t2)
+            _                     -> throwError ("TypeError :\nCannot apply type : " ++ show t2 ++ "\n\t       to : " ++ show t1)
     TBinOpBool op _ e1 e2 -> bothConformTo TBool (e1,e2) op env
     TBinPred op f e1 e2 -> do
         t1 <- typeCheck env e1
         t2 <- typeCheck env e2
         if t1 == t2 && hasOrd t1
             then return TBool
-            else throwErrorLift ("TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show t1 ++ " and " ++ show t2)
+            else throwError ("TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show t1 ++ " and " ++ show t2)
     TBinFieldOp op f e1 e2 -> do
         t1 <- typeCheck env e1
         t2 <- typeCheck env e2
         case (t1, t2) of
             (TCNum , TCNum) -> return TCNum
-            (a     , b    ) -> throwErrorLift $ cannotBeCalledWithError t1 t2 op
+            (a     , b    ) -> throwError $ cannotBeCalledWithError t1 t2 op
     TBinRingOp op f e1 e2 -> do
         t1 <- typeCheck env e1
         t2 <- typeCheck env e2
@@ -81,7 +81,7 @@ typeCheck env = \case
                 (TCPoly , _     ) -> return TCPoly
                 (_      , TCPoly) -> return TCPoly
                 (TCNum  , TCNum ) -> return TCNum
-            else throwErrorLift $ cannotBeCalledWithError t1 t2 op
+            else throwError $ cannotBeCalledWithError t1 t2 op
     -- az op csak Div, Mod
     TBinEucOp op f e1 e2 -> do
         t1 <- typeCheck env e1
@@ -91,22 +91,14 @@ typeCheck env = \case
                 (TCPoly , _     ) -> return TCPoly
                 (_      , TCPoly) -> return TCPoly
                 (TCNum  , TCNum ) -> return TCNum
-            else throwErrorLift $ cannotBeCalledWithError t1 t2 op
+            else throwError $ cannotBeCalledWithError t1 t2 op
     -- It might be worth it to abstract out Poly -> Poly ops
     TPrefix op e    -> do
         e' <- typeCheck env e
         case op of
             Neg    -> if hasEuclid e' 
                         then return e' 
-                        else throwErrorLift $ cannotBeCalledWithError' e' op
-{-
-            Factor -> if isPoly e'
-                        then return e'
-                        else throwErrorLift $ cannotBeCalledWithError' e' op
-            Irred  -> if isPoly e'
-                        then return TBool
-                        else throwErrorLift $ cannotBeCalledWithError' e' op
--}
+                        else throwError $ cannotBeCalledWithError' e' op
 
 cannotBeCalledWithError :: Type -> Type -> BinOp -> String
 cannotBeCalledWithError t1 t2 op = "TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show t1 ++ " and " ++ show t2
@@ -119,26 +111,8 @@ couldntMatchTypeError t1 t2 reason = "TypeError : \nCould not match type : "
     ++ show t1 ++ "\n\t\twith : "
     ++ show t2 ++ "\nReason: " ++ reason
 
--- Maybe inline this again
-{-
-bothTypesEqual :: (TTm,TTm) -> (Type -> Bool) ->  BinOp -> TEnv -> ErrorT GState Type 
-bothTypesEqual (e1,e2) pred op env  = do
-    t1 <- typeCheck env e1
-    t2 <- typeCheck env e2
-    if t1 == t2 && pred t1 then
-        return t1
-    else
-        throwErrorLift ("TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show t1 ++ " and " ++ show t2)
--}
-
---isPoly :: Type -> Bool
---isPoly = flip elem [TPoly, TCPoly]
-
 isPoly :: Type -> Bool
 isPoly = (== TCPoly)
-
---hasEuclid :: Type -> Bool
---hasEuclid = flip elem [TNum, TCNum, TPoly, TCPoly]
 
 hasRing :: Type -> Bool
 hasRing = flip elem [TCNum, TCPoly]
@@ -149,13 +123,6 @@ hasEuclid = flip elem [TCNum, TCPoly]
 hasOrd :: Type -> Bool
 hasOrd = flip elem [TCNum, TBool, TTop]
 
---isNumType :: Type -> Bool
---isNumType e = e `elem` [TNum, TCNum, TPoly, TCPoly]
-
---notFunctionType :: Type -> Bool
---notFunctionType e | e `elem` [TBool, TNum, TCNum, TPoly, TCPoly, TTop] = True
---                  | otherwise = False
-
 bothConformTo :: Type -> (TTm,TTm) -> BinOp -> TEnv -> ErrorT GState Type
 bothConformTo t (e1,e2) op env  = do
     t1 <- typeCheck env e1
@@ -163,4 +130,4 @@ bothConformTo t (e1,e2) op env  = do
     if t1 == t && t2 == t then
         return t
     else
-        throwErrorLift ("TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show t1 ++ " and " ++ show t2)
+        throwError ("TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show t1 ++ " and " ++ show t2)

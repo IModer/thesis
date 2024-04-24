@@ -213,10 +213,15 @@ pattern VPoly :: PolyMulti Frac -> Val
 pattern VPoly n = VLit (LPoly n)
 -}
 
+infixr 6 ...
+infixr 7 ~>
+
 (~>) :: Type -> Type -> Type
 (~>) = TArr 
 
-infixr 7 ~>
+(...) :: Val -> Val -> Val
+(...) = VApp
+
 
 tMod :: TTm -> TTm -> TTm
 tMod = TBinEucOp Mod rem

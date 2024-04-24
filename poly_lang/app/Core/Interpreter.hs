@@ -11,16 +11,16 @@ import Data.Maybe
 import Control.Monad.Trans       --lift
 import Control.Monad.State.Class --MonadClass
 import Control.Monad.State.Lazy  --StateT
-import Control.Monad.Except (runExceptT, throwError)
+import Control.Monad.Except (throwError)
 import Data.Functor.Identity
 import Data.Text hiding (map, elem)
 import Prelude hiding ((*), (+), negate, (-), quot, rem, lcm, gcd)
 import Data.Semiring
-import Data.Euclidean
+--import Data.Euclidean
 
 runTypedTerm :: TTm -> ErrorT GState TTm
 runTypedTerm tm = do
-    b <- lift isContextOpen
+    --b <- lift isContextOpen
     env <- get
     let tm' = maybe 
                 (maybe 
@@ -51,6 +51,7 @@ perculateZmod f = \case
                                 LCNum _  -> tMod (TLit l) f'
                                 LCPoly _ -> tMod (TLit l) f'
                                 _        -> TLit l 
+    TListCons t u        -> TListCons (perculateZmod f t) (perculateZmod f u)
     TBinPred    op g t u -> TBinPred op g (perculateZmod f t) (perculateZmod f u)
     TBinOpBool  op g t u -> TBinOpBool op g (perculateZmod f t) (perculateZmod f u)
     TBinFieldOp op g t u -> tMod (TBinFieldOp op g (perculateZmod f t) (perculateZmod f u)) f'
@@ -95,9 +96,6 @@ evalTerm env' = \case
         return $ case u' of
             (VLit (LList Nil)) -> VList $ Cons e' Nil
             (VLit (LList l))   -> VList $ Cons e' l
-    {-
-    -}
-    --return $ VLit $ LList $ Cons e u        
     TPrefix op e -> do
         e' <- evalTerm env' e
         return $ case op of
@@ -105,14 +103,6 @@ evalTerm env' = \case
                         (VCNum  i) -> VCNum  $ negate i
                         (VCPoly i) -> VCPoly $ negate i
                         (a       ) -> VPrefix op a
-{-
-            Factor -> case e' of
-                        (VCPoly i) -> VCPoly $ i--factor i
-                        (a       ) -> VPrefix op a
-            Irred  -> case e' of
-                        (VCPoly i) -> VCPoly $ irred i
-                        (a       ) -> VPrefix op a
--}
     -- e1 and e2 are CNum
     TBinFieldOp op f e u -> do
         e' <- evalTerm env' e
@@ -127,13 +117,13 @@ evalTerm env' = \case
         case (e', u') of
             (VCPoly i, VCPoly j) -> if getPolyNumOfVariables i == 1 && getPolyNumOfVariables j == 1
                                         then return $ VCPoly (i `f` j)
-                                        else throwErrorLift $ "Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
+                                        else throwError $ "Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
             (VCPoly i, VCNum  j) -> if getPolyNumOfVariables i == 1
                                         then return $ VCPoly (i `f` unsafe (complexToComplexPoly j))
-                                        else throwErrorLift $ "Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
+                                        else throwError $ "Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
             (VCNum  i, VCPoly j) -> if getPolyNumOfVariables j == 1
                                         then return $ VCPoly (unsafe (complexToComplexPoly i) `f` j)
-                                        else throwErrorLift $ "Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
+                                        else throwError $ "Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
             (VCNum  i, VCNum  j) -> return $ VCNum  (i `f` j)
             (a       , b       ) -> return $ VBinEucOp op f a b
     TBinRingOp op f e u -> do
@@ -151,7 +141,7 @@ evalTerm env' = \case
         u' <- evalTerm env' u
         case (e', u') of
             (VCNum i , VCNum j) -> if imag i == zero && imag j == zero then return $ VBool (i `f` j)
-                                    else throwErrorLift "Runtime error: Complex numbers dont have ordering"
+                                    else throwError "Runtime error: Complex numbers dont have ordering"
             (VBool i , VBool j) -> return $ VBool (i `f` j)
             (VTop    , VTop   ) -> return $ VBool True
             (a       , b      ) -> return $ VBinPred op f a b
@@ -202,12 +192,8 @@ quoteTerm ns = \case
         r' <- quoteTerm ns r
         return $ TBinFieldOp op f l' r'
 
-
---normalForm :: TTm -> State GEnv TTm
 normalForm :: TTm -> ErrorT GState TTm
 normalForm tm = do
     val <- evalTerm [] tm
     env <- get
     quoteTerm (map fst $ getVal env) val
-
--- TTm -> ErrorT GState TTm

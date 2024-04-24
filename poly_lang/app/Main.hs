@@ -3,7 +3,7 @@ import System.Environment
 import System.IO
 import System.Directory
 import System.Clock
-import Control.Monad (unless)
+--import Control.Monad (unless)
 import Control.Monad.State.Lazy  -- StateT
 import Control.Monad.Except      -- ExceptT
 import Data.Functor.Identity
@@ -150,8 +150,10 @@ helpOnTopic = \case
     Numbers     -> "Number represent complex number.\
                     \They are declared and used in the usual way:\
                     \ Examples: \n\n\
-                    \ \tpoly> 3\n\
-                    \ \t3\n\
+                    \ \tpoly> 3 * 2\n\
+                    \ \t6\n\
+                    \ \tpoly> 3 + 2*i\n\
+                    \ \t3+2i\n\
                     \ \tpoly> 142 / 14\n\
                     \ \t71/7\n"
     Bools       -> "Bools are used in the usual ways:\
@@ -162,7 +164,7 @@ helpOnTopic = \case
                     \ \tFalse\n\
                     \ \tpoly> if True then 32 else 2\n\
                     \ \t32\n"
-    _           -> "No such topic, run `docs topic` to see avaliable topics\n"
+--    _           -> "No such topic, run `docs topic` to see avaliable topics\n"
     where
         alltopicsPretty = foldMap ((++) "\n\t\t" . show) alltopics
 
@@ -190,55 +192,13 @@ evalFile :: String -> String -> GStateT IO String
 evalFile filename cs = case parseStringFile filename $ pack cs of
     Left a -> return $ errorBundlePretty a
     Right tms_defs -> handleError' $ unlines <$> mapM handle' tms_defs
-{-
-    map 
-        (either id id)
-        (case Prelude.break 
-            (\x -> case x of 
-                Right _ -> False;
-                Left _ -> True) $ 
-                map (\x -> if x == 0 
-                        then Left 0 
-                        else Right x) 
-                [1,2,3,0,0,1] of 
-                    (x,(y:_)) -> x ++ [y]; 
-                    (x,[]) -> x)
-
-    takeIsLeft a ++ 
-    maybe [] ((: []) . fst) $ uncons $ dropIsLeft a
-
-
-
-    runTypedTerm tm :: ExceptT String GState TTm
-    handleTopDef def :: ExceptT String GState String
-
-    tms_defs :: [Either TTm TopDef]
-
-    fmap show :: ExceptT String GState TTm -> ExceptT String GState String
-
-    handleErrorShow :: ExceptT String GState a -> StateT GEnv IO String
-                    :: GState (Either String a) -> 
-
-
-    mapM :: (Either TTm TopDef -> ExceptT String GState) -> 
-            [Either TTm TopDef] -> ExceptT String GState [String]
-
-    mapM handle' tms_defs :: ExceptT String GState [String]
-
-    unlines <$> mapM handle' tms_defs :: ExceptT String GState String
-
-    State GEnv String -> StateT GEnv IO String
-
-    undefined :: StateT GEnv IO String
-
--}
 
 evalRepl :: String -> GStateT IO String
 evalRepl cs = case parseStringRepl $ pack cs of
     Left a   -> return $ errorBundlePretty a
     Right tm_co_def_b -> 
         case tm_co_def_b of
-            Left b         -> return "" -- it was an empty line
+            Left _           -> return "" -- it was an empty line
             Right tm_def_com -> 
                 case tm_def_com of
                     OLeft tm    -> handleErrorShow (runTypedTerm tm)
@@ -273,7 +233,7 @@ handleTopDef def = case def of
             Just p -> do
                 modify $ insertVal (name, VCPoly p)
                 return $ unpack name ++ " is now a polinomial variable"
-            Nothing -> throwErrorLift (unpack name ++ " cannot be made a polinomial variable")
+            Nothing -> throwError (unpack name ++ " cannot be made a polinomial variable")
     -- We check if a is a valid VCNum or VCPoly
     OpenDef ttm -> do
         b <- lift isContextOpen
@@ -281,7 +241,7 @@ handleTopDef def = case def of
             then
                 throwError "Error: Context already open, close it with `close`"
             else do
-                t   <- typeCheck [] ttm
+                _   <- typeCheck [] ttm
                 val <- evalTerm [] ttm
                 case val of
                     VCNum  n -> do
@@ -290,7 +250,7 @@ handleTopDef def = case def of
                     VCPoly p -> do
                         modify $ setZmodF $ Just p 
                         return $ "Context is now open with : " ++ show p
-                    a        -> throwError "Error : Not a valid number/polinomial"
+                    _        -> throwError "Error : Not a valid number/polinomial"
     -- We clear out both ZmodN and ZmodF
     CloseDef -> do
         b <- lift isContextOpen
