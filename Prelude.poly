@@ -1,0 +1,124 @@
+{-
+
+    This is the Prelude file for the 
+    poly_lang language
+
+    It contains wrappers for the basic operations and useful functions
+
+-}
+
+{-
+    Wrappers for operators
+    Naming convention :
+        N - argument is number
+        P - argument is poly
+        B - bool
+    So for example both argument to addNN are numbers 
+
+-}
+
+-- Polinomials
+
+var X
+var Y
+var Z
+
+-- Bool
+
+def and := (\x : Bool . (\y : Bool . x & y))
+
+def or := (\x : Bool . (\y : Bool . x | y))
+
+def not := (\x : Bool . if x then False else True)
+
+def xor := (\x : Bool . (\y : Bool . ( (x & (not y)) | ((not x) & y) ) ))
+
+def nand := (\x : Bool . (\y : Bool . ( not (and x y) )))
+
+-- Pred
+
+def eqNN := (\x : CNum . (\y : CNum . x == y))
+
+--def eqPP := (\x : CPoly . (\y : CPoly . x == y))
+
+def eqBB := (\x : Bool . (\y : Bool . x == y))
+
+-- NN
+def addNN := (\x : CNum . (\y : CNum . x + y))
+
+def subNN := (\x : CNum . (\y : CNum . x - y))
+
+def mulNN := (\x : CNum . (\y : CNum . x * y))
+
+def divNN := (\x : CNum . (\y : CNum . x / y))
+
+def intDivNN := (\x : CNum . (\y : CNum . x div y))
+
+def modNN := (\x : CNum . (\y : CNum . x mod y))
+
+-- NP
+def addNP := (\x : CNum . (\y : CPoly . x + y))
+
+def subNP := (\x : CNum . (\y : CPoly . x - y))
+
+def mulNP := (\x : CNum . (\y : CPoly . x * y))
+
+--def divNP := (\x : CNum . (\y : CPoly . x / y))
+
+def intDivNP := (\x : CNum . (\y : CPoly . x div y))
+
+def modNP := (\x : CNum . (\y : CPoly . x mod y))
+
+-- PN
+def addPN := (\x : CPoly . (\y : CNum . x + y))
+
+def subPN := (\x : CPoly . (\y : CNum . x - y))
+
+def mulPN := (\x : CPoly . (\y : CNum . x * y))
+
+--def divPN := (\x : CPoly . (\y : CNum . x / y))
+
+def intDivPN := (\x : CPoly . (\y : CNum . x div y))
+
+def modPN := (\x : CPoly . (\y : CNum . x mod y))
+
+-- PP
+def addPP := (\x : CPoly . (\y : CPoly . x + y))
+
+def subPP := (\x : CPoly . (\y : CPoly . x - y))
+
+def mulPP := (\x : CPoly . (\y : CPoly . x * y))
+
+--def divPP := (\x : CPoly . (\y : CPoly . x / y))
+
+def intDivPP := (\x : CPoly . (\y : CPoly . x div y))
+
+def modPP := (\x : CPoly . (\y : CPoly . x mod y))
+
+-- Characteristic Polinomials in X
+
+def roottwo := X * X + 2
+
+def rootthree := X * X + 3
+
+def imaginary := X * X - 2
+
+-- Mics
+
+def compNNNN := (\f : CNum -> CNum . (\g : CNum -> CNum . (\x : CNum . f (g x) )))
+
+def compBBBB := (\f : Bool -> Bool . (\g : Bool -> Bool . (\x : Bool . f (g x) )))
+
+def compBBNB := (\f : Bool -> Bool . (\g : CNum -> Bool . (\x : CNum . f (g x) )))
+
+def even := (\x : CNum . (x mod 2) == 0)
+
+def odd := compBBNB not even
+
+def floor := (\x : CNum . x div 1)
+
+def ceiling := (\x : CNum . (x div 1) + 1)
+
+-- calculates the equation for the tangent line of a polinomial at a given point
+
+def tangent := (\f : CPoly . (\x : CPoly . (\a : CNum . (eval [x , a] f) + (eval [x , a] (derivative x f)) * (x - a))))
