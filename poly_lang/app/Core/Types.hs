@@ -154,9 +154,17 @@ instance Ring a => Ring (Complex a) where
 -- https://hackage.haskell.org/package/semirings-0.6/docs/src/Data.Euclidean.html#line-349
 
 conjQuotAbs :: Field a => Complex a -> Complex a
-conjQuotAbs (x :+ y) = x `quot` norm :+ negate y `quot` norm
+conjQuotAbs w@(x :+ y) = x' :+ negate y'
     where
-        norm = (x `times` x) `plus` (y `times` y)
+        Just x' = x `divide` norm w
+        Just y' = y `divide` norm w
+--        norm = (x `times` x) `plus` (y `times` y)
+
+norm :: Semiring a => Complex a -> a
+norm (x :+ y) = (x `times` x) `plus` (y `times` y)
+
+--divide' :: Field a => Complex a -> Complex a -> Complex a
+--divide' 
 
 instance (Field a, Eq a) => GcdDomain (Complex a) where
     divide z@(x :+ y) w@(x' :+ y') = if y == zero && y' == zero
@@ -527,8 +535,10 @@ zxToMultiPoly zx = fromMonoPoly p
             Zx.coeffMap 
             zx
 
+factor' :: Zx.Zx -> [Zx.Zx]
 factor' = map fst . snd . factor
 
+irred' :: Zx.Zx -> Bool
 irred' = irreducible 
 
 {-
@@ -540,6 +550,7 @@ derivative x= go (whichVars x) x
         go (i:is) x' = go is (deriv' (finite i) x')
 -}
 
+{-
 -- forall n . UMultiPoly n a -> UMultiPoly n+m a 
 up :: forall n m a . (Eq a, Semiring a, KnownNat n, KnownNat m) => Proxy m -> VMultiPoly n a -> VMultiPoly (n + m) a
 up m p = let v = unMultiPoly p in toMultiPoly $ V.map (first (SU.++ zeros)) v
@@ -563,3 +574,4 @@ upToSame a b m f g op = if bi == ai
         --mi = natVal m
         ai = natVal a
         bi = natVal b
+-}
