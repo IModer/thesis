@@ -95,9 +95,12 @@ pKeyword kw = do
 -- TODO : this is magic i should ask what it does
 pIdent :: Parser Name
 pIdent = try $ do
-    x <- takeWhile1P Nothing isAlphaNum
+    x <- takeWhile1P Nothing isIdent
     guard (not (keyword x))
     x <$ ws
+    where
+        isIdent :: Char -> Bool
+        isIdent x = isAlphaNum x || (x `elem` ("'_" :: String))
 
 pVariable :: Parser TTm
 pVariable = TVar <$> pIdent
@@ -157,7 +160,7 @@ operatorTable =
     ] ,
     [
       binaryL "*"   (TBinRingOp Times (*)  )
-    , binaryL "/"   (TBinFieldOp Div  ((unsafe .) . divide)  )
+    , binaryL "/"   (TBinFieldOp Div  ((unsafe .) . divide) )
     , binaryL "div" (TBinEucOp IntDiv quot )
     , binaryL "mod" (TBinEucOp Mod    rem  )
     , binaryL "=="  (TBinPred Eq      (==) )
