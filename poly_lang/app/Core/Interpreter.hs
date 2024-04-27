@@ -8,9 +8,9 @@ import Core.Classes
 import Core.Types
 
 import Data.Maybe
-import Control.Monad.Trans       --lift
-import Control.Monad.State.Class --MonadClass
-import Control.Monad.State.Lazy  --StateT
+import Control.Monad.Trans       -- lift
+import Control.Monad.State.Class -- MonadClass
+import Control.Monad.State.Lazy  -- StateT
 import Control.Monad.Except (throwError)
 import Data.Functor.Identity
 import Data.Text hiding (map, elem)
@@ -22,12 +22,12 @@ runTypedTerm :: TTm -> ErrorT GState TTm
 runTypedTerm tm = do
     --b <- lift isContextOpen
     env <- get
-    let tm' = maybe 
-                (maybe 
+    let tm' = maybe
+                (maybe
                     tm 
-                    (\x -> perculateZmod (Right x) tm) 
-                    (getZmodF env)) 
-                (\x -> perculateZmod (Left x) tm) 
+                    (\x -> perculateZmod (Right x) tm)
+                    (getZmodF env))
+                (\x -> perculateZmod (Left x) tm)
                 (getZmodN env) in do
         _ <- typeCheck [] tm'
         --return tm'
@@ -139,12 +139,20 @@ evalTerm env' = \case
     TBinPred op f e u -> do
         e' <- evalTerm env' e
         u' <- evalTerm env' u
-        case (e', u') of
-            (VCNum i , VCNum j) -> if imag i == zero && imag j == zero then return $ VBool (i `f` j)
-                                    else throwError "Runtime error: Complex numbers dont have ordering"
-            (VBool i , VBool j) -> return $ VBool (i `f` j)
-            (VTop    , VTop   ) -> return $ VBool True
-            (a       , b      ) -> return $ VBinPred op f a b
+        if op == Eq
+            then case (e', u') of
+                (VCPoly i, VCPoly j) -> return $ VBool (i == j) 
+                (VCNum i , VCNum j ) -> return $ VBool (i == j)
+                (VBool i , VBool j ) -> return $ VBool (i == j)
+                (VTop    , VTop    ) -> return $ VBool True
+                (a       , b       ) -> return $ VBinPred op f a b
+            else case (e', u') of
+                (VCNum i , VCNum j) -> if imag i == zero && imag j == zero 
+                                        then return $ VBool (i `f` j)
+                                        else throwError "Runtime error: Complex numbers dont have ordering"
+                (VBool i , VBool j) -> return $ VBool (i `f` j)
+                (VTop    , VTop   ) -> return $ VBool True
+                (a       , b      ) -> return $ VBinPred op f a b
     TBinOpBool op f e u -> do
         e' <- evalTerm env' e
         u' <- evalTerm env' u

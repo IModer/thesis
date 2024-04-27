@@ -185,7 +185,7 @@ handle' tm_def = case tm_def of
         Right def -> handleTopDef def
 
 handleError' :: ExceptT String GState String -> StateT GEnv IO String
-handleError' a =    let b = either id id <$> runExceptT a in 
+handleError' a =    let b = either id id <$> runExceptT a in
                         let c = mapStateT (return . runIdentity) b in c
 
 evalFile :: String -> String -> GStateT IO String

@@ -61,10 +61,11 @@ typeCheck env = \case
                             else throwError ("TypeError :\nCould not match type : " ++ show t ++ "\n\t\twith : " ++ show t2)
             _                     -> throwError ("TypeError :\nCannot apply type : " ++ show t2 ++ "\n\t       to : " ++ show t1)
     TBinOpBool op _ e1 e2 -> bothConformTo TBool (e1,e2) op env
+    -- TODO make it so EQ is callable on CPoly
     TBinPred op f e1 e2 -> do
         t1 <- typeCheck env e1
         t2 <- typeCheck env e2
-        if t1 == t2 && hasOrd t1
+        if (op == Eq && t1 == t2 && hasEq t1) || (op /= Eq && t1 == t2 && hasOrd t1)
             then return TBool
             else throwError ("TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show t1 ++ " and " ++ show t2)
     TBinFieldOp op f e1 e2 -> do
@@ -119,6 +120,9 @@ hasRing = flip elem [TCNum, TCPoly]
 
 hasEuclid :: Type -> Bool
 hasEuclid = flip elem [TCNum, TCPoly]
+
+hasEq :: Type -> Bool
+hasEq = flip elem [TCPoly, TCNum, TBool, TTop]
 
 hasOrd :: Type -> Bool
 hasOrd = flip elem [TCNum, TBool, TTop]
