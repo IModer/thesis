@@ -60,6 +60,8 @@ data TTm
     | TBinEucOp BinOp EuclideanOp TTm TTm
     | TBinRingOp BinOp RingOp TTm TTm
     | TPrefix PrefixOp TTm
+    -- Fix
+    | TFix TTm
 
 data PrefixOp
     = Neg
@@ -148,6 +150,8 @@ showTTm = \case
     TBinEucOp op _ t u  -> unwords [showTTm t,show op,showTTm u]
     TBinRingOp op _ t u -> unwords [showTTm t,show op,showTTm u]
     TBinFieldOp  op _ t u -> unwords [showTTm t,show op,showTTm u]
+    -- Fix
+    TFix tm             -> showTTm tm
 
 instance Show TTm where
     show = showTTm

@@ -8,6 +8,7 @@ import Core.Classes
 import Core.Types
 
 import Data.Maybe
+import Control.Monad.Fix
 import Control.Monad.Trans       -- lift
 import Control.Monad.State.Class -- MonadClass
 import Control.Monad.State.Lazy  -- StateT
@@ -89,6 +90,13 @@ evalTerm env' = \case
         e' <- evalTerm env' e
         evalTerm ((n, e'):env') u
     TLit l     -> return $ VLit l
+    -- FIX
+    TFix m         -> do
+        m' <- evalTerm env' m
+        case m' of
+            (VLam n t e) -> do
+                mfix e -- I DONT KNOW HOW TO DO THIS
+            ---- this is covered by typechecking
     -- We know u is of type list
     TListCons e u -> do --NOT lazy list
         e' <- evalTerm env' e

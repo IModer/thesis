@@ -22,6 +22,11 @@ typeCheck env = \case
     TLit (LBool _) -> return TBool
     TLit (LTop _)  -> return TTop
     TLit (LList _) -> return TList
+    TFix e         -> do
+        t1 <- typeCheck env e
+        case t1 of
+            (TArr t t') | t == t' -> return t
+            a                     -> throwError "TypeError : Argument to Fix should have type : a -> a, where a is any type"
     TListCons e u  -> do
         t1 <- typeCheck env e
         t2 <- typeCheck env u

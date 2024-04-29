@@ -194,6 +194,7 @@ pExprT = try $ choice
     [ 
       {-dbg "parens expr" -} (parens pExpr) <?> "parenthesized expression"
     , {-dbg "literal"     -} pLit         <?> "literal"
+    , {-dbg "fix"     -}     pFix         <?> "fix expression"
     , {-dbg "variable"    -} pVariable    <?> "variable"
     , {-dbg "function"    -} pLam         <?> "function"
     , {-dbg "let expr"    -} pLet         <?> "let expression"
@@ -205,6 +206,12 @@ pExpr = makeExprParser pExprT operatorTable
 
 pBind :: Parser Text
 pBind  = pIdent <|> symbol "_"
+
+pFix :: Parser TTm
+pFix = do
+    symbol "Fix"
+    t <- pTm
+    return $ TFix t
 
 pLam :: Parser TTm
 pLam = do
@@ -259,6 +266,7 @@ pTm  = try (choice
     [ {-dbg "expr"    -} pExpr
     , {-dbg "lambda"  -} pLam
     , {-dbg "letbind" -} pLet
+    , {-dbg "fix"     -} pFix
     , {-dbg "if bind" -} pIfThenElse
     , {-dbg "parens " -} parens pTm
     ] <?> "a valid term")

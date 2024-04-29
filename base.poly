@@ -20,7 +20,7 @@ def g := X * X * X * X + 4 * X * X - 4
 
 f mod g
 
-f mod (Y * X) -- Runtime error
+--f mod (Y * X) -- Runtime error
 
 derivative X f 
 
@@ -53,3 +53,9 @@ def Plus := (\m : (CNum -> CNum) -> CNum -> CNum  . \n : (CNum -> CNum) -> CNum 
 Multi
 line comment
 -}
+
+def plusFix := (\f : CNum -> CNum -> CNum . \x : CNum . \y : CNum . if x == 0 then y else (f (x - 1) (y + 1)))
+
+def factorial' := (\f' : CNum -> CNum . \x : CNum . if x == 0 then 1 else x * f' (x - 1))
+
+def fact := Fix factorial'
