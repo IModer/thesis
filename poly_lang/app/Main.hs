@@ -7,6 +7,7 @@ import System.Clock
 import Control.Monad.State.Lazy  -- StateT
 import Control.Monad.Except      -- ExceptT
 import Data.Functor.Identity
+import Data.List (union)
 
 import Text.Megaparsec.Error
 -- Saját imports
@@ -18,7 +19,7 @@ import Core.AST
 import Core.Types
 import Lib
 import Parser
-import Data.Text hiding (length, map, unlines, uncons, foldl)
+import Data.Text hiding (length, map, unlines, uncons, foldl, lines, take) -- swicth this to qualified?
 
 main :: IO ()
 main = do
@@ -62,7 +63,11 @@ loadFiles filenames = do
                 then do
                     con <- lift $ readFile filename
                     s <- evalFile filename con
-                    return ("Loading file : " ++ filename ++ "\n" ++ s)
+                    let a = lines s
+                    if length a > 5
+                        then return ("Loading file : " ++ filename ++ "\n" ++ (unlines $ take 5 a ++ ["...(" ++ (show $ length a) ++ ") more lines"]))
+                        else return ("Loading file : " ++ filename ++ "\n" ++ s)
+                    --lift $ putStrLn $ show $ length a
                 else do
                     return $ "There is no such file : " ++ filename
 
@@ -271,15 +276,20 @@ handleCommand co = case co of
         rs <- handleErrorShow (runTypedTerm tm)
         t2 <- lift $ getTime Monotonic
         return $ rs ++ "\nrunning it took: " ++ show (toNanoSecs $ diffTimeSpec t1 t2) ++ " ns"
-    LoadFile ns -> unlines <$> loadFiles (map unpack ns) -- load files then 
+    LoadFile ns -> do
+        modify $ modifyFiles ((union) (map unpack ns)) -- we add the files the user wanted to load 
+        unlines <$> loadFiles (map unpack ns) -- load files 
     GetType  tm -> handleErrorShow (typeCheck [] tm)  -- we have to typecheck tm then print out the type
     GetInfo  tp -> return $ helpOnTopic tp
+    ReloadFiles -> do
+        env <- get
+        unlines <$> loadFiles (getFiles env) -- try to reload all files in "cache"
 
 print_ :: String -> IO ()
 print_ = putStrLn
 
 runRepl :: GEnv -> IO ()
-runRepl = evalStateT runStatefulRepl
+runRepl = evalStateT (loadFiles ["..\\Prelude.poly"] >> runStatefulRepl)
 
 runStatefulRepl :: GStateT IO ()
 runStatefulRepl = do

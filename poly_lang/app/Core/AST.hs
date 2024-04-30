@@ -31,14 +31,15 @@ type VEnv  = [(Name, Val)]
 data GEnv = GEnv { typeEnv :: TEnv
                  , nameEnv :: VEnv
                  , zmodn :: Maybe (Complex Frac)
-                 , zmodf :: Maybe (PolyMulti (Complex Frac)) }
+                 , zmodf :: Maybe (PolyMulti (Complex Frac))
+                 , files :: [String] }
 
 data List a = Nil | Cons a (List a)
     deriving (Eq, Show)
 
 instance Foldable List where
     foldr f b Nil         = b
-    foldr f b (Cons x xs) = f x (foldr f b xs) 
+    foldr f b (Cons x xs) = f x (foldr f b xs)
 
 listToList :: [a] -> List a
 listToList = foldr Cons Nil

@@ -149,7 +149,7 @@ evalTerm env' = \case
         u' <- evalTerm env' u
         if op == Eq
             then case (e', u') of
-                (VCPoly i, VCPoly j) -> return $ VBool (i == j) 
+                (VCPoly i, VCPoly j) -> return $ VBool (i == j)
                 (VCNum i , VCNum j ) -> return $ VBool (i == j)
                 (VBool i , VBool j ) -> return $ VBool (i == j)
                 (VTop    , VTop    ) -> return $ VBool True

@@ -81,7 +81,7 @@ keywords = ["\\", "let", "in", "def"
             , "var" 
             ,"if", "then", "else"
             , "open", "close" , "Zmod"
-            , "tt", "i"
+            , "tt", "i", "fix"
             ]
 
 keyword :: Text -> Bool
@@ -209,7 +209,7 @@ pBind  = pIdent <|> symbol "_"
 
 pFix :: Parser TTm
 pFix = do
-    symbol "Fix"
+    symbol "fix"
     t <- pTm
     return $ TFix t
 
@@ -245,10 +245,10 @@ pLet = do
 
 pBaseType :: Parser Type
 pBaseType = choice
-    [ symbol "CNum"  $> TCNum
+    [ symbol "Num"  $> TCNum
 --    , symbol "Num"   $> TNum
 --    , symbol "Poly"  $> TPoly
-    , symbol "CPoly" $> TCPoly
+    , symbol "Poly" $> TCPoly
     , symbol "Bool"  $> TBool
     , symbol "Top"   $> TTop
     , symbol "List"  $> TList
@@ -293,6 +293,7 @@ data Command
     | LoadFile [Name]   -- :l <f> <f2> ... | :load <f> <f2> ...
     | GetType  TTm      -- :t <tm>         | :type <tm>
     | GetInfo  Topic    -- :i <topic>      | :info <topic>
+    | ReloadFiles       -- :r              | :reload
     deriving Show
 
 data TopDef
@@ -395,6 +396,11 @@ pRunTimedCommand = do
     tm <- pTm
     return $ RunTimed tm
 
+pReloadFilesCommand :: Parser Command
+pReloadFilesCommand = do
+    choice [void $ symbol "reload", void $ char 'r']
+    return ReloadFiles
+
 pCommand :: Parser Command
 pCommand = do
     void (C.char ':') <?> "a valid command"
@@ -404,6 +410,7 @@ pCommand = do
         , pGetTypeCommand <?> "types command"
         , pGetInfoCommand <?> "info command"
         , pLoadFileCommand <?> "load file command"
+        , pReloadFilesCommand <?> "reload file command"
         ]
 
 pReplLine :: Parser (Either () (Option TTm Command TopDef))

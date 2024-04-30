@@ -102,8 +102,8 @@ typeCheck env = \case
     TPrefix op e    -> do
         e' <- typeCheck env e
         case op of
-            Neg    -> if hasEuclid e' 
-                        then return e' 
+            Neg    -> if hasEuclid e'
+                        then return e'
                         else throwError $ cannotBeCalledWithError' e' op
 
 cannotBeCalledWithError :: Type -> Type -> BinOp -> String

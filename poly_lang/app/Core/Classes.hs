@@ -46,16 +46,26 @@ setZmodN mf g = g {zmodn = mf}
 setZmodF :: Maybe (PolyMulti (Complex Frac)) -> GEnv -> GEnv
 setZmodF mp g = g {zmodf = mp}
 
+getFiles :: GEnv -> [String]
+getFiles = files
+
+setFiles :: [String] -> GEnv -> GEnv
+setFiles fs g = g {files = fs}
+
+modifyFiles :: ([String] -> [String]) -> GEnv -> GEnv
+modifyFiles f g = let fs' = f $ files g in g {files = fs'}
+
 isContextOpen :: GState Bool
 isContextOpen = do
     env <- get
     return $ isJust (getZmodN env) || isJust (getZmodF env)
 
-{-
+{- Defined in Core.AST
 data GEnv = GEnv { typeEnv :: TEnv
                  , nameEnv :: VEnv
                  , zmodn :: Maybe Frac
-                 , zmodf :: Maybe (PolyMulti Frac) }
+                 , zmodf :: Maybe (PolyMulti Frac)
+                 , names :: [Strings] }
 -}
 
 imag'' :: Val -> ErrorT GState Val
@@ -134,7 +144,7 @@ derivVal  = (pack "derivative", VLam (pack "x") TCPoly $ \x ->
 
 emptyEnv :: GEnv
 emptyEnv = GEnv [derivType, evalType, factorType, irredType, realType, imagType]
-                [derivVal, evalVal, factorVal, irredVal, realVal, imagVal] Nothing Nothing
+                [derivVal, evalVal, factorVal, irredVal, realVal, imagVal] Nothing Nothing ["..\\Prelude.poly"]
 
 type GState = State GEnv
 
