@@ -64,7 +64,7 @@ loadFiles filenames = do
                     con <- lift $ readFile filename
                     s <- evalFile filename con
                     let a = lines s
-                    if length a > 5
+                    if length a > 10
                         then return ("Loading file : " ++ filename ++ "\n" ++ (unlines $ take 5 a ++ ["...(" ++ (show $ length a) ++ ") more lines"]))
                         else return ("Loading file : " ++ filename ++ "\n" ++ s)
                     --lift $ putStrLn $ show $ length a
@@ -83,6 +83,7 @@ help = "Usage : poly_lang.exe or poly_lang.exe <command>   \n\
                       \ \t\thelp - prints this help\n\
                       \ \t\tdocs <topic> - Prints help on the specified topic, use `docs topic` to print out the available topics"
 
+-- TODO: topic for polinomials functions, főleg eval, subst
 helpOnTopic :: Topic -> String
 helpOnTopic = \case
     MetaTopic   -> "Topics: " ++ alltopicsPretty 
@@ -289,7 +290,10 @@ print_ :: String -> IO ()
 print_ = putStrLn
 
 runRepl :: GEnv -> IO ()
-runRepl = evalStateT (loadFiles ["..\\Prelude.poly"] >> runStatefulRepl)
+runRepl = evalStateT (do
+    [logs] <- loadFiles ["..\\Prelude.poly"]
+    lift $ putStrLn logs
+    runStatefulRepl)
 
 runStatefulRepl :: GStateT IO ()
 runStatefulRepl = do

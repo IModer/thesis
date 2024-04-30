@@ -23,6 +23,10 @@ var X
 var Y
 var Z
 
+-- Useful Poly functions
+
+def evalAt := (\p : Poly . \x :Poly . \a : Num . subst [x, x*0 + a] p)
+
 -- Bool
 
 def and := (\x : Bool . (\y : Bool . x & y))
@@ -37,63 +41,63 @@ def nand := (\x : Bool . (\y : Bool . ( not (and x y) )))
 
 -- Pred
 
-def eqNN := (\x : CNum . (\y : CNum . x == y))
+def eqNN := (\x : Num . (\y : Num . x == y))
 
---def eqPP := (\x : CPoly . (\y : CPoly . x == y))
+--def eqPP := (\x : Poly . (\y : Poly . x == y))
 
 def eqBB := (\x : Bool . (\y : Bool . x == y))
 
 -- NN
-def addNN := (\x : CNum . (\y : CNum . x + y))
+def addNN := (\x : Num . (\y : Num . x + y))
 
-def subNN := (\x : CNum . (\y : CNum . x - y))
+def subNN := (\x : Num . (\y : Num . x - y))
 
-def mulNN := (\x : CNum . (\y : CNum . x * y))
+def mulNN := (\x : Num . (\y : Num . x * y))
 
-def divNN := (\x : CNum . (\y : CNum . x / y))
+def divNN := (\x : Num . (\y : Num . x / y))
 
-def intDivNN := (\x : CNum . (\y : CNum . x div y))
+def intDivNN := (\x : Num . (\y : Num . x div y))
 
-def modNN := (\x : CNum . (\y : CNum . x mod y))
+def modNN := (\x : Num . (\y : Num . x mod y))
 
 -- NP
-def addNP := (\x : CNum . (\y : CPoly . x + y))
+def addNP := (\x : Num . (\y : Poly . x + y))
 
-def subNP := (\x : CNum . (\y : CPoly . x - y))
+def subNP := (\x : Num . (\y : Poly . x - y))
 
-def mulNP := (\x : CNum . (\y : CPoly . x * y))
+def mulNP := (\x : Num . (\y : Poly . x * y))
 
---def divNP := (\x : CNum . (\y : CPoly . x / y))
+--def divNP := (\x : Num . (\y : Poly . x / y))
 
-def intDivNP := (\x : CNum . (\y : CPoly . x div y))
+def intDivNP := (\x : Num . (\y : Poly . x div y))
 
-def modNP := (\x : CNum . (\y : CPoly . x mod y))
+def modNP := (\x : Num . (\y : Poly . x mod y))
 
 -- PN
-def addPN := (\x : CPoly . (\y : CNum . x + y))
+def addPN := (\x : Poly . (\y : Num . x + y))
 
-def subPN := (\x : CPoly . (\y : CNum . x - y))
+def subPN := (\x : Poly . (\y : Num . x - y))
 
-def mulPN := (\x : CPoly . (\y : CNum . x * y))
+def mulPN := (\x : Poly . (\y : Num . x * y))
 
---def divPN := (\x : CPoly . (\y : CNum . x / y))
+--def divPN := (\x : Poly . (\y : Num . x / y))
 
-def intDivPN := (\x : CPoly . (\y : CNum . x div y))
+def intDivPN := (\x : Poly . (\y : Num . x div y))
 
-def modPN := (\x : CPoly . (\y : CNum . x mod y))
+def modPN := (\x : Poly . (\y : Num . x mod y))
 
 -- PP
-def addPP := (\x : CPoly . (\y : CPoly . x + y))
+def addPP := (\x : Poly . (\y : Poly . x + y))
 
-def subPP := (\x : CPoly . (\y : CPoly . x - y))
+def subPP := (\x : Poly . (\y : Poly . x - y))
 
-def mulPP := (\x : CPoly . (\y : CPoly . x * y))
+def mulPP := (\x : Poly . (\y : Poly . x * y))
 
---def divPP := (\x : CPoly . (\y : CPoly . x / y))
+--def divPP := (\x : Poly . (\y : Poly . x / y))
 
-def intDivPP := (\x : CPoly . (\y : CPoly . x div y))
+def intDivPP := (\x : Poly . (\y : Poly . x div y))
 
-def modPP := (\x : CPoly . (\y : CPoly . x mod y))
+def modPP := (\x : Poly . (\y : Poly . x mod y))
 
 -- Characteristic Polinomials in X
 
@@ -105,24 +109,27 @@ def imaginary := X * X - 2
 
 -- Mics
 
-def compNNNN := (\f : CNum -> CNum . (\g : CNum -> CNum . (\x : CNum . f (g x) )))
+def compNNNN := (\f : Num -> Num . (\g : Num -> Num . (\x : Num . f (g x) )))
 
 def compBBBB := (\f : Bool -> Bool . (\g : Bool -> Bool . (\x : Bool . f (g x) )))
 
-def compBBNB := (\f : Bool -> Bool . (\g : CNum -> Bool . (\x : CNum . f (g x) )))
+def compBBNB := (\f : Bool -> Bool . (\g : Num -> Bool . (\x : Num . f (g x) )))
 
-def even := (\x : CNum . (x mod 2) == 0)
+def even := (\x : Num . (x mod 2) == 0)
 
 def odd := compBBNB not even
 
-def floor := (\x : CNum . x div 1)
+def floor := (\x : Num . x div 1)
 
-def ceiling := (\x : CNum . (x div 1) + 1)
+def ceiling := (\x : Num . (x div 1) + 1)
 
 -- with Fix
 
-def fact := fix ((\rec : CNum -> CNum . \x : CNum . if x == 0 then 1 else x * rec (x - 1)))
+def fact := fix ((\rec : Num -> Num . \x : Num . if x == 0 then 1 else x * rec (x - 1)))
+
+def pow := fix ((\rec : Num -> Num -> Num . \x : Num . \y : Num . if y <= 0 then x else x * rec x (y - 1)))
 
 -- calculates the equation for the tangent line of a polinomial at a given point
 
-def tangent := (\f : CPoly . (\x : CPoly . (\a : CNum . (eval [x , a] f) + (eval [x , a] (derivative x f)) * (x - a))))
+def tangent := (\f : Poly . (\x : Poly . (\a : Num . (eval [x , a] f) + (eval [x , a] (derivative x f)) * (x - a))))
+

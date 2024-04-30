@@ -84,6 +84,26 @@ realType = (pack "real", TCNum ~> TCNum)
 realVal  = (pack "real", VLam (pack "x") TCNum $ \x ->  
                             real'' x)
 
+-- Maybe this should fail, or we just check if this is empty list
+listToSubstInp :: [Val] -> [(PolyMulti (Complex Frac), PolyMulti (Complex Frac))]
+listToSubstInp []       = []
+listToSubstInp [x]      = []
+listToSubstInp (x:y:xs) = case (x,y) of
+    (VCPoly p, VCPoly n) -> (p , n) : listToSubstInp xs
+    (a       , b)       -> listToSubstInp xs
+
+subst'' :: Val -> Val -> ErrorT GState Val
+subst'' (VList l) (VCPoly p) = let l' = listToSubstInp $ listToList' l in
+                                if l' /= [] && all ((`loneVarOf` p) . fst) l' 
+                                    then return $ VCPoly $ subst' l' p
+                                    else throwError "Runtime error : List given to subst must have the appropriate format, for more details type\n :i Polinomials"
+subst'' a          b         = return $ (VVar (pack "builtin.subst") ... VVar (pack "ls")) ... VVar (pack "p")
+
+substType = (pack "subst", TList ~> TCPoly ~> TCPoly)
+substVal  = (pack "subst", VLam (pack "ls") TList $ \ls -> 
+                        return $ VLam (pack "p") TCPoly $ \p -> 
+                            subst'' ls p)
+
 irred'' :: Val -> ErrorT GState Val
 irred'' (VCPoly p) = if polyIsZx p
                         then case monoPolyToZx p of
@@ -120,7 +140,7 @@ eval'' :: Val -> Val -> ErrorT GState Val
 eval'' (VList l) (VCPoly p) = let l' = listToEvalInp $ listToList' l in
                                 if l' /= [] && all ((`loneVarOf` p) . fst) l' 
                                     then return $ VCNum $ eval' l' p
-                                    else throwError "Runtime error : List given to eval must have the appopriate format : TODO"
+                                    else throwError "Runtime error : List given to eval must have the appropriate format, for more details type\n :i Polinomials"
 eval'' a          b         = return $ (VVar (pack "builtin.eval") ... VVar (pack "ls")) ... VVar (pack "p")
 
 evalType = (pack "eval", TList ~> TCPoly ~> TCNum)
@@ -143,8 +163,23 @@ derivVal  = (pack "derivative", VLam (pack "x") TCPoly $ \x ->
                             deriv'' x p)
 
 emptyEnv :: GEnv
-emptyEnv = GEnv [derivType, evalType, factorType, irredType, realType, imagType]
-                [derivVal, evalVal, factorVal, irredVal, realVal, imagVal] Nothing Nothing ["..\\Prelude.poly"]
+emptyEnv = GEnv [derivType
+                , evalType
+                , factorType
+                , irredType
+                , realType
+                , imagType
+                , substType
+                ]
+                [derivVal
+                , evalVal
+                , factorVal
+                , irredVal
+                , realVal
+                , imagVal
+                , substVal
+                ]
+                Nothing Nothing ["..\\Prelude.poly"]
 
 type GState = State GEnv
 

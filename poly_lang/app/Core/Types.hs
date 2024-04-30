@@ -33,7 +33,7 @@ import Data.Finite
 import Data.Type.Bool (If)
 import GHC.TypeLits
 import Data.Proxy (Proxy(..))
-import Data.Bifunctor (first)
+import Data.Bifunctor (first, second, bimap)
 
 -- Factor
 import qualified Data.IntMap as IM
@@ -461,26 +461,43 @@ complexToPoly :: Complex Frac -> Maybe (PolyMulti Frac)
 
 -- Extra polinomial functions on PolyMulti
 
-irred = undefined
+--irred = undefined
 
-ls :: Finite 26 -> Frac -> SG.Vector V.Vector 26 Frac
-ls i f = unsafe $ SG.fromList $ replaceAtIndex (toInteger i) f $ replicate 26 $ 0 %% 1
+--ls :: Finite 26 -> Frac -> SG.Vector V.Vector 26 Frac
+--ls i f = unsafe $ SG.fromList $ replaceAtIndex (toInteger i) f $ replicate 26 $ 0 %% 1
 
---subst
---subst
 
--- eval X :: 1 :: Z :: 0 :: [] (X*X+2*X+Z) = 1*1+2*1+0
+-- subst [X, X* X , Z , X] (X + 2*X * Z + Z) = ((X * X) + 2 * (X * X) + X)  
+subst' :: [(PolyMulti (Complex Frac), PolyMulti (Complex Frac))] -> PolyMulti (Complex Frac) -> PolyMulti (Complex Frac)
+subst' xs (BoxP p) = BoxP $ subst p (polys SG.// is xs)
+    where
+        is :: [(PolyMulti (Complex Frac), PolyMulti (Complex Frac))] -> [(Finite 26, Poly26 (Complex Frac))]
+        is = map (bimap (finite . head . whichVars) unPolyMulti)
+        
+        -- polys, amik : [A,B,C,D,...,X,Y,Z]
+        polys :: SG.Vector V.Vector 26 (Poly26 (Complex Frac))
+        polys = unsafe $ 
+                SG.fromList $ 
+                map (unPolyMulti . unsafe . stringToComplexPoly . (: "")) 
+                vars
+        {-
+        -}
+
+        --ones :: Semiring a => SG.Vector V.Vector 26 (MultiPoly a)
+        --ones = unsafe $ SG.fromList $ 
+
+-- eval [X, 1 , Z , 0] (X*X+2*X+Z) = 1*1+2*1+0
 --         these should be loneVars of this
 --              |                  |
 --              V                  V
 eval' :: (Semiring a, Eq a) => [(PolyMulti a, a)] -> PolyMulti a -> a
-eval' xs (BoxP p) = eval p ((SG.//) zeros (is xs))
+eval' xs (BoxP p) = eval p ((SG.//) ones (is xs))
     where
         is :: [(PolyMulti a, a)] -> [(Finite 26, a)]
         is = map (first (finite . head . whichVars))
 
-        zeros :: Semiring a => SG.Vector V.Vector 26 a
-        zeros = unsafe $ SG.fromList $ replicate 26 one
+        ones :: Semiring a => SG.Vector V.Vector 26 a
+        ones = unsafe $ SG.fromList $ replicate 26 one
 
 deriv' :: (Eq a, Semiring a) => Finite 26 -> PolyMulti a -> PolyMulti a
 deriv' k (BoxP x) = BoxP $ deriv k x
@@ -497,13 +514,13 @@ derivative k = deriv' (finite k')
 -- Factor
 
 testPolyZx :: Zx.Zx
-testPolyZx = (x `m` x) `s` four
+testPolyZx = c 10 `m` ((x `m` x) `s` c 4) -- (x `s` c 3) `m` (x `s` c 3) `m` (x `s` c 3) --
     where
         x = Zx.variable
         m = Zx.multiply
         p = Zx.add
         s = (. Zx.negate) . Zx.add
-        four = Zx.constant 4
+        c = Zx.constant
 
 polyIsZx :: PolyMulti (Complex Frac) -> Bool
 polyIsZx (BoxP p) = let a = unMultiPoly p in
@@ -532,14 +549,16 @@ zxToMultiPoly zx = fromMonoPoly p
     where
         p = foldr ((+) . (\(i,a) -> PS.monomial (fromIntegral i) (a %% 1 :+ zero))) zero $
             IM.toList $
-            Zx.coeffMap 
+            Zx.coeffMap
             zx
 
 factor' :: Zx.Zx -> [Zx.Zx]
-factor' = map fst . snd . factor
+factor' x = map (Zx.multiply (Zx.constant a)) $ concatMap (\(x,i) -> replicate (fromIntegral i) x) ls
+    where
+        (a , ls) = factor x
 
 irred' :: Zx.Zx -> Bool
-irred' = irreducible 
+irred' = irreducible
 
 {-
 derivative :: (Eq a, Semiring a) => PolyMulti a -> PolyMulti a

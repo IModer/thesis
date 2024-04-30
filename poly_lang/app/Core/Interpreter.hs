@@ -9,11 +9,11 @@ import Core.Types
 
 import Data.Maybe
 import Control.Monad.Fix
-import Control.Monad.Trans       -- lift
+import Control.Monad.Trans()     -- lift
 import Control.Monad.State.Class -- MonadClass
 import Control.Monad.State.Lazy  -- StateT
 import Control.Monad.Except (throwError)
-import Data.Functor.Identity
+--import Data.Functor.Identity
 import Data.Text hiding (map, elem)
 import Prelude hiding ((*), (+), negate, (-), quot, rem, lcm, gcd)
 import Data.Semiring
@@ -52,6 +52,7 @@ perculateZmod f = \case
                                 LCNum _  -> tMod (TLit l) f'
                                 LCPoly _ -> tMod (TLit l) f'
                                 _        -> TLit l 
+    TFix n               -> TFix n
     TListCons t u        -> TListCons (perculateZmod f t) (perculateZmod f u)
     TBinPred    op g t u -> TBinPred op g (perculateZmod f t) (perculateZmod f u)
     TBinOpBool  op g t u -> TBinOpBool op g (perculateZmod f t) (perculateZmod f u)
@@ -94,8 +95,7 @@ evalTerm env' = \case
     TFix m         -> do
         m' <- evalTerm env' m
         case m' of
-            (VLam n t e) -> do
-                mfix e -- I DONT KNOW HOW TO DO THIS
+            (VLam _ _ e) -> mfix e -- I DONT KNOW HOW TO DO THIS
             ---- this is covered by typechecking
     -- We know u is of type list
     TListCons e u -> do --NOT lazy list

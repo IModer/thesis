@@ -114,8 +114,8 @@ pNil = do
 
 pFancyList :: Parser TTm
 pFancyList = do
-    ls <- between (symbol "[") (symbol "]") (pTm `sepBy` symbol ",")
-    return $ foldr TListCons (TLit $ LList Nil) (listToList ls)
+    lst <- between (symbol "[") (symbol "]") (pTm `sepBy` symbol ",")
+    return $ foldr TListCons (TLit $ LList Nil) (listToList lst)
 
 pLit :: Parser TTm
 pLit = try $ choice
@@ -209,7 +209,7 @@ pBind  = pIdent <|> symbol "_"
 
 pFix :: Parser TTm
 pFix = do
-    symbol "fix"
+    void $ symbol "fix"
     t <- pTm
     return $ TFix t
 

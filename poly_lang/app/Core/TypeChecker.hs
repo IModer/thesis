@@ -2,14 +2,14 @@
 
 module Core.TypeChecker where
 
-import Control.Monad.Except (liftEither, throwError)
-import Control.Monad.State (lift, get)
+import Control.Monad.Except (throwError)
+import Control.Monad.State (get)
 
 import Core.AST
-import Lib
+--import Lib
 import Core.Classes
 import qualified Data.Text as T
-import Data.List (intercalate)
+import Data.List()
 
 typeCheck :: TEnv -> TTm -> ErrorT GState Type
 typeCheck env = \case
@@ -26,7 +26,7 @@ typeCheck env = \case
         t1 <- typeCheck env e
         case t1 of
             (TArr t t') | t == t' -> return t
-            a                     -> throwError "TypeError : Argument to Fix should have type : a -> a, where a is any type"
+            _                     -> throwError "TypeError : Argument to Fix should have type : a -> a, where a is any type"
     TListCons e u  -> do
         t1 <- typeCheck env e
         t2 <- typeCheck env u
@@ -66,20 +66,19 @@ typeCheck env = \case
                             else throwError ("TypeError :\nCould not match type : " ++ show t ++ "\n\t\twith : " ++ show t2)
             _                     -> throwError ("TypeError :\nCannot apply type : " ++ show t2 ++ "\n\t       to : " ++ show t1)
     TBinOpBool op _ e1 e2 -> bothConformTo TBool (e1,e2) op env
-    -- TODO make it so EQ is callable on CPoly
-    TBinPred op f e1 e2 -> do
+    TBinPred op _ e1 e2 -> do
         t1 <- typeCheck env e1
         t2 <- typeCheck env e2
         if (op == Eq && t1 == t2 && hasEq t1) || (op /= Eq && t1 == t2 && hasOrd t1)
             then return TBool
             else throwError ("TypeError :\n" ++ ("(" ++ show op ++ ")") ++ " cannot be called with : " ++ show t1 ++ " and " ++ show t2)
-    TBinFieldOp op f e1 e2 -> do
+    TBinFieldOp op _ e1 e2 -> do
         t1 <- typeCheck env e1
         t2 <- typeCheck env e2
         case (t1, t2) of
             (TCNum , TCNum) -> return TCNum
-            (a     , b    ) -> throwError $ cannotBeCalledWithError t1 t2 op
-    TBinRingOp op f e1 e2 -> do
+            (_     , _    ) -> throwError $ cannotBeCalledWithError t1 t2 op
+    TBinRingOp op _ e1 e2 -> do
         t1 <- typeCheck env e1
         t2 <- typeCheck env e2
         if hasEuclid t1 && hasEuclid t2
@@ -89,7 +88,7 @@ typeCheck env = \case
                 (TCNum  , TCNum ) -> return TCNum
             else throwError $ cannotBeCalledWithError t1 t2 op
     -- az op csak Div, Mod
-    TBinEucOp op f e1 e2 -> do
+    TBinEucOp op _ e1 e2 -> do
         t1 <- typeCheck env e1
         t2 <- typeCheck env e2
         if hasEuclid t1 && hasEuclid t2
