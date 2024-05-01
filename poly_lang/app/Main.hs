@@ -65,7 +65,7 @@ loadFiles filenames = do
                     s <- evalFile filename con
                     let a = lines s
                     if length a > 10
-                        then return ("Loading file : " ++ filename ++ "\n" ++ (unlines $ take 5 a ++ ["...(" ++ (show $ length a) ++ ") more lines"]))
+                        then return ("Loading file : " ++ filename ++ "\n" ++ unlines (take 5 a ++ ["...(" ++ show (length a) ++ ") more lines"]))
                         else return ("Loading file : " ++ filename ++ "\n" ++ s)
                     --lift $ putStrLn $ show $ length a
                 else do
