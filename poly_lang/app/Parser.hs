@@ -213,15 +213,25 @@ pFix = do
     t <- pTm
     return $ TFix t
 
-pLam :: Parser TTm
-pLam = do
-    void $ char '\\'
+pLamArg :: Parser (TTm -> TTm)
+pLamArg = do
     x <- pBind
     void $ char ':'
     t <- pType
+    return $ TLam x t
+
+pLam :: Parser TTm
+pLam = do
+    void $ char '\\'
+    {-
+    x <- pBind
+    void $ char ':'
+    t <- pType
+    -}
+    args <- pLamArg `sepBy` char ','
     void $ char '.'
     u <- pTm
-    return $ TLam x t u
+    return $ foldr ($) u args --TLam x t u 
 
 pIfThenElse :: Parser TTm
 pIfThenElse = do
