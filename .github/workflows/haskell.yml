@@ -35,6 +35,8 @@ jobs:
 
     - name: Install dependencies
       run: |
+        pwd
+        cd ..\..\poly_lang
         cabal update
         cabal build --only-dependencies --enable-tests --enable-benchmarks
     - name: Build
