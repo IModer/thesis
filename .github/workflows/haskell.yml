@@ -35,13 +35,17 @@ jobs:
 
     - name: Install dependencies
       run: |
-        ghcup upgrade
-        ls
+        ghcup install ghc 8.2.2
+        # set the currently "active" GHC version
+        ghcup set ghc 8.4.4
         cd poly_lang
         cabal update
         cabal build --only-dependencies --enable-tests --enable-benchmarks
     - name: Build
       run: |
+        ghcup install ghc 8.2.2
+        # set the currently "active" GHC version
+        ghcup set ghc 8.4.4
         ls
         cd poly_lang
         cabal build --enable-tests --enable-benchmarks all
