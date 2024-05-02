@@ -123,15 +123,18 @@ evalTerm env' = \case
         e' <- evalTerm env' e
         u' <- evalTerm env' u
         case (e', u') of
-            (VCPoly i, VCPoly j) -> if getPolyNumOfVariables i == 1 && getPolyNumOfVariables j == 1
-                                        then return $ VCPoly (i `f` j)
-                                        else throwError $ "Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
-            (VCPoly i, VCNum  j) -> if getPolyNumOfVariables i == 1
-                                        then return $ VCPoly (i `f` unsafe (complexToComplexPoly j))
-                                        else throwError $ "Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
-            (VCNum  i, VCPoly j) -> if getPolyNumOfVariables j == 1
-                                        then return $ VCPoly (unsafe (complexToComplexPoly i) `f` j)
-                                        else throwError $ "Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
+            (VCPoly i, VCPoly j) -> let (i', j') = (getPolyNumOfVariables i , getPolyNumOfVariables j) in
+                                        if (i' == 1 || i' == 0) && (j' == 1 || j' == 0)
+                                            then return $ VCPoly (i `f` j)
+                                            else throwError $ "Middle Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
+            (VCPoly i, VCNum  j) -> let i' = getPolyNumOfVariables i in
+                                        if (i' == 1 || i' == 0)
+                                            then return $ VCPoly (i `f` unsafe (complexToComplexPoly j))
+                                            else throwError $ "Left Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
+            (VCNum  i, VCPoly j) -> let j' = getPolyNumOfVariables j in
+                                        if (j' == 1 || j' == 0)
+                                            then return $ VCPoly (unsafe (complexToComplexPoly i) `f` j)
+                                            else throwError $ "Right Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
             (VCNum  i, VCNum  j) -> return $ VCNum  (i `f` j)
             (a       , b       ) -> return $ VBinEucOp op f a b
     TBinRingOp op f e u -> do

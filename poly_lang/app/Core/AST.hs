@@ -63,6 +63,7 @@ data TTm
     | TPrefix PrefixOp TTm
     -- Fix
     | TFix TTm
+--    deriving Show
 
 data PrefixOp
     = Neg
@@ -124,10 +125,10 @@ data Type
 instance Show Type where
     show = \case
         TArr t u -> unwords ["(",show t,"->",show u,")"]
-        TCNum    -> "CNum"
+        TCNum    -> "Num"
 --        TNum     -> "Number"
         TBool    -> "Bool"
-        TCPoly   -> "CPoly"
+        TCPoly   -> "Poly"
 --        TPoly    -> "Poly"
         TTop     -> "Top"
         TList    -> "List"

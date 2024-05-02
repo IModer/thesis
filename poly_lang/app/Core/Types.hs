@@ -346,8 +346,12 @@ getPolyDegree (BoxP p) = let a = unMultiPoly p in
 
 getPolyNumOfVariables :: PolyMulti a -> Int
 getPolyNumOfVariables (BoxP p) = let a = unMultiPoly p in
-                                    let usa = V.map (V.convert . SU.fromSized . fst) a in
-                                        V.length $ V.filter id $ V.foldl1 (V.zipWith (||)) $ V.map (V.map (>0)) usa
+                                 let usa = V.map (V.convert . SU.fromSized . fst) a in
+                                V.length $ 
+                                V.filter id $ 
+                                V.foldl1 (V.zipWith (||)) $ 
+                                V.map (V.map (>0)) 
+                                usa
 {-
 ifMonoWhichVar :: PolyMulti a -> Int
 ifMonoWhichVar (BoxP p) = let a = unMultiPoly p in
@@ -553,7 +557,9 @@ zxToMultiPoly zx = fromMonoPoly p
             zx
 
 factor' :: Zx.Zx -> [Zx.Zx]
-factor' x = map (Zx.multiply (Zx.constant a)) $ concatMap (\(x,i) -> replicate (fromIntegral i) x) ls
+factor' x = map (Zx.multiply (Zx.constant a)) $
+            concatMap (\(x',i) -> replicate (fromIntegral i) x')
+            ls
     where
         (a , ls) = factor x
 
