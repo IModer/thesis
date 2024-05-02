@@ -25,8 +25,7 @@ var Z
 
 -- Useful Poly functions
 
-def evalAt := (\p : Poly . \x :Poly . \a : Num . subst [x, x*0 + a] p)
-
+def evalAt(p x : Poly , a : Num) := subst [x, x*0 + a] p
 -- Bool
 
 def and (x y : Bool) := x & y
@@ -105,7 +104,7 @@ def roottwo := X * X + 2
 
 def rootthree := X * X + 3
 
-def imaginary := X * X - 2
+def imaginary := X * X + 1
 
 -- Mics
 
