@@ -29,36 +29,36 @@ def evalAt := (\p : Poly . \x :Poly . \a : Num . subst [x, x*0 + a] p)
 
 -- Bool
 
-def and := (\x : Bool . (\y : Bool . x & y))
+def and (x y : Bool) := x & y
 
-def or := (\x : Bool . (\y : Bool . x | y))
+def or (x y : Bool) := x | y
 
-def not := (\x : Bool . if x then False else True)
+def not (x : Bool) := if x then False else True
 
-def xor := (\x : Bool . (\y : Bool . ( (x & (not y)) | ((not x) & y) ) ))
+def xor (x y : Bool) := (x & (not y)) | ((not x) & y)
 
-def nand := (\x : Bool . (\y : Bool . ( not (and x y) )))
+def nand (x y : Bool) := not (and x y)
 
 -- Pred
 
-def eqNN := (\x : Num . (\y : Num . x == y))
+def eqNN (x y : Num) := x == y
 
---def eqPP := (\x : Poly . (\y : Poly . x == y))
+--def eqPP (x y : Poly) := x == y
 
-def eqBB := (\x : Bool . (\y : Bool . x == y))
+def eqBB (x y : Bool) := x == y
 
 -- NN
-def addNN := (\x : Num . (\y : Num . x + y))
+def addNN(x y : Num) := x + y
 
-def subNN := (\x : Num . (\y : Num . x - y))
+def subNN(x y : Num) := x - y
 
-def mulNN := (\x : Num . (\y : Num . x * y))
+def mulNN(x y : Num) := x * y
 
-def divNN := (\x : Num . (\y : Num . x / y))
+def divNN(x y : Num) := x / y
 
-def intDivNN := (\x : Num . (\y : Num . x div y))
+def intDivNN(x y : Num) := x div y
 
-def modNN := (\x : Num . (\y : Num . x mod y))
+def modNN(x y : Num) := x mod y
 
 -- NP
 def addNP := (\x : Num . (\y : Poly . x + y))
@@ -109,31 +109,31 @@ def imaginary := X * X - 2
 
 -- Mics
 
-def compNNNN := (\f : Num -> Num . (\g : Num -> Num . (\x : Num . f (g x) )))
+def compNNNN(f g : Num -> Num, x : Num) := f (g x)
 
-def compBBBB := (\f : Bool -> Bool . (\g : Bool -> Bool . (\x : Bool . f (g x) )))
+def compBBBB(f g : Bool -> Bool, x : Bool) := f (g x)
 
-def compBBNB := (\f : Bool -> Bool . (\g : Num -> Bool . (\x : Num . f (g x) )))
+def compBBNB(f: Bool -> Bool, g : Num -> Bool, x : Num) := f (g x)
 
-def even := (\x : Num . (x mod 2) == 0)
+def even(x : Num) := (x mod 2) == 0
 
 def odd := compBBNB not even
 
-def floor := (\x : Num . x div 1)
+def floor(x : Num) := x div 1
 
-def ceiling := (\x : Num . (x div 1) + 1)
+def ceiling(x : Num) := (x div 1) + 1
 
 -- with Fix
 
-def fact := fix ((\rec : Num -> Num . \x : Num . if x == 0 then 1 else x * rec (x - 1)))
+def fact := fix ((\rec : Num -> Num , x : Num . if x == 0 then 1 else x * rec (x - 1)))
 
 -- x^y
-def pow := fix ((\rec : Num -> Num -> Num . \x : Num . \y : Num . if y <= 0 then 1 else x * rec x (y - 1)))
+def pow := fix ((\rec : Num -> Num -> Num , x y : Num . if y <= 0 then 1 else x * rec x (y - 1)))
 
 -- p^x, where p : Poly
-def powP := fix ((\rec : Poly -> Num -> Poly . \p : Poly . \x : Num . if x <= 0 then (p * 0 + 1) else p * rec p (x - 1)))
+def powP := fix ((\rec : Poly -> Num -> Poly , p : Poly , x : Num . if x <= 0 then (p * 0 + 1) else p * rec p (x - 1)))
 
 -- calculates the equation for the tangent line of a polinomial at a given point
 
-def tangent := (\f : Poly . (\x : Poly . (\a : Num . (eval [x , a] f) + (eval [x , a] (derivative x f)) * (x - a))))
+def tangent(f x : Poly , a : Num) := (eval [x , a] f) + (eval [x , a] (derivative x f)) * (x - a)
 

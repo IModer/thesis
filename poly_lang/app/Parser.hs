@@ -215,10 +215,13 @@ pFix = do
 
 pLamArg :: Parser (TTm -> TTm)
 pLamArg = do
-    x <- pBind
+    xs <- some pBind
     void $ char ':'
     t <- pType
-    return $ TLam x t
+    let xs' = foldr (.) (id) $ map (\x -> TLam x t) xs
+    return xs'
+    --return $ map (\x -> TLam x t) xs
+    --return $ TLam x t
 
 pLam :: Parser TTm
 pLam = do
@@ -247,11 +250,15 @@ pLet :: Parser TTm
 pLet = do
     pKeyword "let"
     x <- pBind
+    ns <- optional $ parens (pLamArg `sepBy` char ',')
     pKeyword ":="
     t <- pTm
     pKeyword "in"
     u <- pTm
-    return $ TLet x t u
+    case ns of
+        Just ns' -> return $ TLet x (foldr ($) t ns') u
+        Nothing -> return $ TLet x t u
+    --return $ TLet x t u
 
 pBaseType :: Parser Type
 pBaseType = choice
@@ -317,10 +324,13 @@ pLetDef :: Parser TopDef
 pLetDef = do
     pKeyword "def"
     x <- pBind
+    ns <- optional $ parens (pLamArg `sepBy` char ',')
     void $ symbol ":="
     t <- pTm
     --void $ symbol ";"  --?
-    return $ LetDef x t
+    case ns of
+        Just ns' -> return $ LetDef x (foldr ($) t ns')
+        Nothing -> return $ LetDef x t
 
 pVarDef :: Parser TopDef
 pVarDef = do
