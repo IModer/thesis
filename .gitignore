@@ -4,7 +4,10 @@ dist-newstyle
 # Mics
 *.token
 *.pdf
+*.zip
 TételekMics
+Artifacts
+Releases
 
 # deprecated Rust project
 poly_lang_rust
