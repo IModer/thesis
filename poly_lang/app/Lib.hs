@@ -2,34 +2,9 @@
 
 module Lib where
 
-import Control.Applicative
+import Control.Applicative (Alternative(..))
 
-{-
-import qualified Data.Set as Set
--- from : https://github.com/nh2/haskell-ordnub
-ordNub :: (Ord a) => [a] -> [a]
-ordNub = go Set.empty
-  where
-    go _ [] = []
-    go s (x:xs) = if x `Set.member` s then go s xs
-                                      else x : go (Set.insert x s) xs
--}
-
--- Error type for typechecker
-{-
-type Error = Either String
-
-throwError :: String -> Either String a
-throwError = Left
-
-pattern Error :: String -> Error a
-pattern Error s = Left s
-
-pattern Result :: a -> Error a
-pattern Result a = Right a
--}
-
--- 3Option for Parser
+-- Type with 3 options for Parser
 
 data Option a b c = OLeft a | OMiddle b | ORight c
     deriving (Show, Eq)
@@ -65,17 +40,6 @@ snd3 (_,b,_) = b
 thrd3 :: (a,b,c) -> c
 thrd3 (_,_,c) = c
 
-{-
-antipartitionEither :: ([a],[b]) -> [Either a b]
-antipartitionEither (a, b) = undefined
-
-filterToEither :: [Option a b c] -> [Either a b]
-filterToEither x = antipartitionEither (a,b)
-    where
-        a = fst3 $ partitionOptions x
-        b = snd3 $ partitionOptions x
--}
-
 filterToEither :: [Option a b c] -> [Either a b]
 filterToEither []               = []
 filterToEither (OLeft x : xs)   = Left x : filterToEither xs
@@ -93,7 +57,9 @@ eitherIdL = either id
 
 eitherIdR f = either f id
 
--- very bad function
+-- Utulity for lists
 
 replaceAtIndex :: Integer -> a -> [a] -> [a]
-replaceAtIndex i x xs = take (fromIntegral i) xs ++ [x] ++ drop (fromIntegral $ i + 1) xs
+replaceAtIndex i x xs = take (fromIntegral i) xs ++ 
+    [x] ++ 
+    drop (fromIntegral $ i + 1) xs

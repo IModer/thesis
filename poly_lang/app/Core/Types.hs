@@ -1,10 +1,14 @@
 {-# LANGUAGE DataKinds, TypeFamilies, UndecidableInstances #-}
+{-# OPTIONS_GHC -Wincomplete-patterns #-}
 
 module Core.Types where
 
+-- TODO
+-- Cleanup/comments
+
 import Lib
 
-import Control.Exception
+import Control.Exception (Exception, displayException, try, evaluate)
 
 import Data.Maybe (fromJust, fromMaybe, isJust)
 import Data.Ord   (comparing)
@@ -18,7 +22,6 @@ import Prelude hiding ((*), (+), negate, (-), quot, rem, lcm, gcd)
 -- Poly
 import Data.Poly.Multi.Semiring
 import qualified Data.Poly.Semiring as PS
---import Data.Poly.Internal.Multi.Field
 
 -- Show Poly
 import Data.List (intersperse, maximumBy, nub)
@@ -29,10 +32,9 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as VU
 
 import Data.Finite
---import GHC.TypeNats
-import Data.Type.Bool (If)
-import GHC.TypeLits
-import Data.Proxy (Proxy(..))
+--import Data.Type.Bool (If)
+--import GHC.TypeLits
+--import Data.Proxy (Proxy(..))
 import Data.Bifunctor (first, second, bimap)
 
 -- Factor
@@ -573,30 +575,4 @@ derivative x= go (whichVars x) x
         --go :: Finite 26 -> PolyMulti (Complex Frac) -> PolyMulti (Complex Frac)
         go [] x' = x'
         go (i:is) x' = go is (deriv' (finite i) x')
--}
-
-{-
--- forall n . UMultiPoly n a -> UMultiPoly n+m a 
-up :: forall n m a . (Eq a, Semiring a, KnownNat n, KnownNat m) => Proxy m -> VMultiPoly n a -> VMultiPoly (n + m) a
-up m p = let v = unMultiPoly p in toMultiPoly $ V.map (first (SU.++ zeros)) v
-    where
-        ni :: Int
-        ni = fromIntegral $ natVal m
-        zeros :: (KnownNat m) => SU.Vector m Word  
-        zeros = fromJust $ SU.fromList $ replicate ni 0
-
-type family Max (a :: Nat) (b :: Nat) :: Nat where
-  Max 0 b = b
-  Max a b = If (a <=? b) b a
-
-type MultiPolyOp a = forall n . (KnownNat n) => VMultiPoly n a -> VMultiPoly n a -> VMultiPoly n a 
-
-upToSame :: (KnownNat m, KnownNat n, Semiring a, Eq a) => Proxy n -> Proxy m -> Proxy (Max m n) -> VMultiPoly n a -> VMultiPoly m a -> MultiPolyOp a -> VMultiPoly (Max m n) a
-upToSame a b m f g op = if bi == ai 
-                    then undefined --let g' = up Proxy g in op f g'
-                    else undefined --let f' = up Proxy f in _
-    where
-        --mi = natVal m
-        ai = natVal a
-        bi = natVal b
 -}

@@ -1,10 +1,9 @@
 module Core.Classes where
 
-import Control.Monad.State
-import Control.Monad.Except
-import Core.AST
-import Core.Types
-import GHC.TypeNats
+import Control.Monad.State (State, StateT, get)
+import Control.Monad.Except (ExceptT, throwError)
+import Core.AST   -- innen is
+import Core.Types -- TODO valszeg minden kell
 import Data.Text hiding (map, all)
 
 import Data.Maybe (isJust)
@@ -13,12 +12,14 @@ import Data.Maybe (isJust)
 
 type ErrorT = ExceptT String
 
---throwErrorLift :: MonadError e m' => e -> m' a 
---throwErrorLift = liftEither . throwError
 
--- Custome state for type context and value context
+type GState = State GEnv
+
+type GStateT = StateT GEnv
+
+-- Custom state for type context and value context
 -- As long as the getter and setter functions are used 
--- this is can be considered as abstract
+-- this can be considered as abstract
 --type TEnv = [(Name, Type)]
 --type VEnv  = [(Name, Val)]
 
@@ -70,35 +71,42 @@ data GEnv = GEnv { typeEnv :: TEnv
 
 imag'' :: Val -> ErrorT GState Val
 imag'' (VCNum p) = return $ VCNum (imag p :+ 0 %% 1)
-imag'' a         = return $ VVar (pack "builtin.imag") ... VVar (pack "x")
+imag'' _         = return $ VVar (pack "builtin.imag") ... VVar (pack "x")
 
+imagType :: (Name, Type)
+imagVal  :: (Name, Val)
 imagType = (pack "imag", TCNum ~> TCNum)
 imagVal  = (pack "imag", VLam (pack "x") TCNum $ \x ->  
                             imag'' x)
 
 real'' :: Val -> ErrorT GState Val
 real'' (VCNum p) = return $ VCNum (real p :+ 0 %% 1)
-real'' a         = return $ VVar (pack "builtin.real") ... VVar (pack "x")
+real'' _         = return $ VVar (pack "builtin.real") ... VVar (pack "x")
 
+realType :: (Name, Type)
+realVal  :: (Name, Val)
 realType = (pack "real", TCNum ~> TCNum)
 realVal  = (pack "real", VLam (pack "x") TCNum $ \x ->  
                             real'' x)
 
--- Maybe this should fail, or we just check if this is empty list
-listToSubstInp :: [Val] -> [(PolyMulti (Complex Frac), PolyMulti (Complex Frac))]
-listToSubstInp []       = []
-listToSubstInp [x]      = []
+listToSubstInp :: [Val] -> Maybe ([(PolyMulti (Complex Frac), PolyMulti (Complex Frac))])
+listToSubstInp []       = Just []
+listToSubstInp [_]      = Nothing
 listToSubstInp (x:y:xs) = case (x,y) of
-    (VCPoly p, VCPoly n) -> (p , n) : listToSubstInp xs
-    (a       , b)       -> listToSubstInp xs
+    (VCPoly p, VCPoly n) -> do
+        xs' <- listToSubstInp xs
+        return $ (p , n) : xs'
+    _                    -> listToSubstInp xs
 
 subst'' :: Val -> Val -> ErrorT GState Val
-subst'' (VList l) (VCPoly p) = let l' = listToSubstInp $ listToList' l in
-                                if l' /= [] && all ((`loneVarOf` p) . fst) l' 
-                                    then return $ VCPoly $ subst' l' p
-                                    else throwError "Runtime error : List given to subst must have the appropriate format, for more details type\n :i Polinomials"
-subst'' a          b         = return $ (VVar (pack "builtin.subst") ... VVar (pack "ls")) ... VVar (pack "p")
+subst'' (VList l) (VCPoly p) = let l' = listToSubstInp l in
+    case l' of
+        Just ls | all ((`loneVarOf` p) . fst) ls -> return $ VCPoly $ subst' ls p
+        _                                        -> throwError "Runtime error : List given to subst must have the appropriate format, for more details type\n :i Polinomials"
+subst'' _          _         = return $ (VVar (pack "builtin.subst") ... VVar (pack "ls")) ... VVar (pack "p")
 
+substType :: (Name, Type)
+substVal  :: (Name, Val)
 substType = (pack "subst", TList ~> TCPoly ~> TCPoly)
 substVal  = (pack "subst", VLam (pack "ls") TList $ \ls -> 
                         return $ VLam (pack "p") TCPoly $ \p -> 
@@ -107,11 +115,13 @@ substVal  = (pack "subst", VLam (pack "ls") TList $ \ls ->
 irred'' :: Val -> ErrorT GState Val
 irred'' (VCPoly p) = if polyIsZx p
                         then case monoPolyToZx p of
-                            Just (p' , i) -> return $ VBool $ irred' p'
+                            Just (p' , _) -> return $ VBool $ irred' p'
                             Nothing       -> throwError "Runtime error : Argument to irred should be a polinomian with a single varable and coeffs in Z"
                         else throwError "Runtime error : Argument to irred should be a polinomian with a single varable and coeffs in Z"
-irred'' a          = return $ VVar (pack "builtin.irred") ... VVar (pack "p")
+irred'' _          = return $ VVar (pack "builtin.irred") ... VVar (pack "p")
 
+irredType :: (Name, Type)
+irredVal  :: (Name, Val)
 irredType = (pack "irred", TCPoly ~> TBool)
 irredVal  = (pack "irred", VLam (pack "p") TCPoly $ \p ->  
                             irred'' p)
@@ -119,30 +129,35 @@ irredVal  = (pack "irred", VLam (pack "p") TCPoly $ \p ->
 factor'' :: Val -> ErrorT GState Val
 factor'' (VCPoly p) = if polyIsZx p
                         then case monoPolyToZx p of
-                            Just (p' , i) -> return $ VList $ listToList $ map (VCPoly . flip zxToMultiPoly i) (factor' p')
+                            Just (p' , i) -> return $ VList $ map (VCPoly . flip zxToMultiPoly i) (factor' p')
                             Nothing       -> throwError "Runtime error : Argument to factor should be a polinomian with a single varable and coeffs in Z"
                         else throwError "Runtime error : Argument to factor should be a polinomian with a single varable and coeffs in Z"
-factor'' a          = return $ VVar (pack "builtin.factor") ... VVar (pack "p")
+factor'' _          = return $ VVar (pack "builtin.factor") ... VVar (pack "p")
 
+factorType :: (Name, Type)
+factorVal  :: (Name, Val)
 factorType = (pack "factor", TCPoly ~> TList)
 factorVal  = (pack "factor", VLam (pack "p") TCPoly $ \p ->  
                             factor'' p)
 
--- Maybe this should fail, or we just check if this is empty list
-listToEvalInp :: [Val] -> [(PolyMulti (Complex Frac), Complex Frac)]
-listToEvalInp []       = []
-listToEvalInp [x]      = []
+listToEvalInp :: [Val] -> Maybe ([(PolyMulti (Complex Frac), Complex Frac)])
+listToEvalInp []       = Just []
+listToEvalInp [_]      = Nothing
 listToEvalInp (x:y:xs) = case (x,y) of
-    (VCPoly p, VCNum n) -> (p , n) : listToEvalInp xs
-    (a       , b)       -> listToEvalInp xs
+    (VCPoly p, VCNum n) -> do
+        xs' <- listToEvalInp xs
+        return $ (p , n) : xs'
+    _                   -> listToEvalInp xs
 
 eval'' :: Val -> Val -> ErrorT GState Val
-eval'' (VList l) (VCPoly p) = let l' = listToEvalInp $ listToList' l in
-                                if l' /= [] && all ((`loneVarOf` p) . fst) l' 
-                                    then return $ VCNum $ eval' l' p
-                                    else throwError "Runtime error : List given to eval must have the appropriate format, for more details type\n :i Polinomials"
-eval'' a          b         = return $ (VVar (pack "builtin.eval") ... VVar (pack "ls")) ... VVar (pack "p")
+eval'' (VList l) (VCPoly p) = let l' = listToEvalInp l in
+    case l' of
+        Just ls | all ((`loneVarOf` p) . fst) ls -> return $ VCNum $ eval' ls p
+        _ -> throwError "Runtime error : List given to eval must have the appropriate format, for more details type\n :i Polinomials"
+eval'' _          _         = return $ (VVar (pack "builtin.eval") ... VVar (pack "ls")) ... VVar (pack "p")
 
+evalType :: (Name, Type)
+evalVal  :: (Name, Val)
 evalType = (pack "eval", TList ~> TCPoly ~> TCNum)
 evalVal  = (pack "eval", VLam (pack "ls") TList $ \ls -> 
                         return $ VLam (pack "p") TCPoly $ \p -> 
@@ -154,23 +169,24 @@ deriv'' (VCPoly i) (VCPoly p) = if loneVarOf i p
                                          VCPoly $ 
                                          derivativeVar i p
                                     else throwError "Runtime error : Variable to take derivative in must be a single variable thats present in the polinome"
-deriv'' a         b          = return $ 
-                                (VVar (pack "builtin.derivative") ... VVar (pack "x")) ... VVar (pack "p")
+deriv'' _         _           = return $ (VVar (pack "builtin.derivative") ... VVar (pack "x")) ... VVar (pack "p")
 
+derivType :: (Name, Type)
+derivVal  :: (Name, Val)
 derivType = (pack "derivative", TCPoly ~> TCPoly ~> TCPoly)
 derivVal  = (pack "derivative", VLam (pack "x") TCPoly $ \x ->
                         return $ VLam (pack "p") TCPoly $ \p ->
                             deriv'' x p)
 
 emptyEnv :: GEnv
-emptyEnv = GEnv [derivType
+emptyEnv = GEnv [derivType  --types of builtins
                 , evalType
                 , factorType
                 , irredType
                 , realType
                 , imagType
                 , substType
-                ]
+                ]           -- vals of buildtins
                 [derivVal
                 , evalVal
                 , factorVal
@@ -179,8 +195,5 @@ emptyEnv = GEnv [derivType
                 , imagVal
                 , substVal
                 ]
-                Nothing Nothing ["..\\Prelude.poly"]
-
-type GState = State GEnv
-
-type GStateT = StateT GEnv
+                Nothing Nothing -- we start with an empty context
+                ["..\\Prelude.poly"] -- always load prelude

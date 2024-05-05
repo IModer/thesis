@@ -1,27 +1,23 @@
-{-# OPTIONS_GHC -Wincomplete-patterns #-}
+--{-# OPTIONS_GHC -Wincomplete-patterns #-}
 {-# LANGUAGE LambdaCase, ViewPatterns #-}
-module Core.Interpreter where
+module Core.Interpreter(runTypedTerm, evalTerm) where
 
 import Core.AST
 import Core.TypeChecker
 import Core.Classes
 import Core.Types
 
-import Data.Maybe
-import Control.Monad.Fix
-import Control.Monad.Trans()     -- lift
-import Control.Monad.State.Class -- MonadClass
-import Control.Monad.State.Lazy  -- StateT
+import Control.Monad.Fix (mfix)
+import Control.Monad.State.Class (get)
 import Control.Monad.Except (throwError)
---import Data.Functor.Identity
-import Data.Text hiding (map, elem)
-import Prelude hiding ((*), (+), negate, (-), quot, rem, lcm, gcd)
-import Data.Semiring
---import Data.Euclidean
+import Data.Text (snoc)
+import Prelude hiding (negate)
+import Data.Semiring (negate, zero)
 
+-- Typechecks and calculates the normalform of TTm
+-- If there is a context open then first calls perculateZmod on it
 runTypedTerm :: TTm -> ErrorT GState TTm
 runTypedTerm tm = do
-    --b <- lift isContextOpen
     env <- get
     let tm' = maybe
                 (maybe
@@ -31,16 +27,14 @@ runTypedTerm tm = do
                 (\x -> perculateZmod (Left x) tm)
                 (getZmodN env) in do
         _ <- typeCheck [] tm'
-        --return tm'
         normalForm tm'
-
---- Evaluation ---
 
 freshName :: [Name] -> Name -> Name
 freshName ns x = if x `elem` ns
                     then freshName ns $ snoc x '\''
                     else x
 
+-- Inserts (mod f) into the AST in the appopriate places
 perculateZmod :: Either (Complex Frac) (PolyMulti (Complex Frac)) -> TTm -> TTm
 perculateZmod f = \case
     TVar n               -> TVar n --tMod (TVar n) (TLit $ LCNum f)
@@ -67,12 +61,12 @@ vLamApp :: Val -> Val -> ErrorT GState Val
 vLamApp (VLam _ _ t) u = t u
 vLamApp t          u   = return $ VApp t u
 
---evalTerm :: VEnv -> TTm -> State GEnv Val
+-- 
 evalTerm :: VEnv -> TTm -> ErrorT GState Val
 evalTerm env' = \case
     TVar n     -> do
         env <- get
-        maybe   (return $ fromJust $ lookup n $ getVal env)
+        maybe   (return $ unsafe $ lookup n $ getVal env)
                 return
                 (lookup n env')
     TApp t u   -> do
@@ -91,19 +85,23 @@ evalTerm env' = \case
         e' <- evalTerm env' e
         evalTerm ((n, e'):env') u
     TLit l     -> return $ VLit l
-    -- FIX
     TFix m         -> do
         m' <- evalTerm env' m
+        -- because of typechecking we know m : t ~> t'
+        -- so its a VLam
         case m' of
-            (VLam _ _ e) -> mfix e -- I DONT KNOW HOW TO DO THIS
-            ---- this is covered by typechecking
-    -- We know u is of type list
-    TListCons e u -> do --NOT lazy list
+            (VLam _ _ e) -> mfix e
+            _            -> error "unreachable : TFix m, m should have be a (VLam x t e)"
+    TListCons e u -> do
+        -- not a lazy list, we force eval e and u
         e' <- evalTerm env' e
         u' <- evalTerm env' u
+        -- because of typechecking we know u' : List
+        -- so its a VList
         return $ case u' of
-            (VLit (LList Nil)) -> VList $ Cons e' Nil
-            (VLit (LList l))   -> VList $ Cons e' l
+            (VList []) -> VList $ e' : []
+            (VList l)   -> VList $ (e' : l)
+            _            -> error "unreachable : TListCons e u, u should have be a (VList l)"
     TPrefix op e -> do
         e' <- evalTerm env' e
         return $ case op of
@@ -111,52 +109,60 @@ evalTerm env' = \case
                         (VCNum  i) -> VCNum  $ negate i
                         (VCPoly i) -> VCPoly $ negate i
                         (a       ) -> VPrefix op a
-    -- e1 and e2 are CNum
     TBinFieldOp op f e u -> do
         e' <- evalTerm env' e
         u' <- evalTerm env' u
+        -- because of typechecking we know e1,e2 : CNum
+        -- if they are not a literal means they are stuck
+        -- or they are incorrect but we do not explicitly cover those cases
         return $ case (e', u') of 
             (VCNum i, VCNum j) -> VCNum (i `f` j)
             (a      ,       b) -> VBinFieldOp op f a b
-    -- e1 and e1 are in [TCNum, TCPoly]
     TBinEucOp op f e u -> do
         e' <- evalTerm env' e
         u' <- evalTerm env' u
+        -- e' and u' are in [TCNum, TCPoly]
+        -- if they are not literals we have the same case as TBinFieldOp
+        -- because the euclidian ops : div and mod only work with monopoly
+        -- we also check if the polinomials at max have 1 variable
         case (e', u') of
             (VCPoly i, VCPoly j) -> let (i', j') = (getPolyNumOfVariables i , getPolyNumOfVariables j) in
                                         if (i' == 1 || i' == 0) && (j' == 1 || j' == 0)
                                             then return $ VCPoly (i `f` j)
-                                            else throwError $ "Middle Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
+                                            else throwError $ "Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
+            -- We lift VCNum into a poly
             (VCPoly i, VCNum  j) -> let i' = getPolyNumOfVariables i in
                                         if (i' == 1 || i' == 0)
                                             then return $ VCPoly (i `f` unsafe (complexToComplexPoly j))
-                                            else throwError $ "Left Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
+                                            else throwError $ "Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
             (VCNum  i, VCPoly j) -> let j' = getPolyNumOfVariables j in
                                         if (j' == 1 || j' == 0)
                                             then return $ VCPoly (unsafe (complexToComplexPoly i) `f` j)
-                                            else throwError $ "Right Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
+                                            else throwError $ "Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
             (VCNum  i, VCNum  j) -> return $ VCNum  (i `f` j)
             (a       , b       ) -> return $ VBinEucOp op f a b
     TBinRingOp op f e u -> do
         e' <- evalTerm env' e
         u' <- evalTerm env' u
         return $ case (e', u') of
+            -- e' and u' are in [TCNum, TCPoly]
+            -- if they are not literals we have the same case as TBinEucOp
             (VCPoly i, VCPoly j) -> VCPoly (i `f` j)
             (VCPoly i, VCNum  j) -> VCPoly (i `f` unsafe (complexToComplexPoly j))
             (VCNum  i, VCPoly j) -> VCPoly (unsafe (complexToComplexPoly i) `f` j)
             (VCNum  i, VCNum  j) -> VCNum  (i `f` j)
             (a       , b       ) -> VBinRingOp op f a b
-    -- e and u are both the same and have Ord [Bool, Num, Top]
     TBinPred op f e u -> do
         e' <- evalTerm env' e
         u' <- evalTerm env' u
+        -- we have eq for all types but ord only for [Bool, Num, Top]
         if op == Eq
             then case (e', u') of
                 (VCPoly i, VCPoly j) -> return $ VBool (i == j)
                 (VCNum i , VCNum j ) -> return $ VBool (i == j)
                 (VBool i , VBool j ) -> return $ VBool (i == j)
                 (VTop    , VTop    ) -> return $ VBool True
-                (a       , b       ) -> return $ VBinPred op f a b
+                (a       , b       ) -> return $ VBinPred op f a b            
             else case (e', u') of
                 (VCNum i , VCNum j) -> if imag i == zero && imag j == zero 
                                         then return $ VBool (i `f` j)
@@ -171,7 +177,7 @@ evalTerm env' = \case
             (VBool i, VBool j) -> VBool $ i `f` j
             (a      , b      ) -> VBinOpBool op f a b
 
---quoteTerm :: [Name] -> Val -> TTm
+-- Turns Val into TTm with var names from [Name] and fresh names for lam-s
 quoteTerm :: [Name] -> Val -> ErrorT GState TTm
 quoteTerm ns = \case
     VVar x                       -> return $ TVar x

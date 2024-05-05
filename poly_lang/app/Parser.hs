@@ -2,22 +2,33 @@
 
 module Parser where
 
+-- TODO :
+-- - clean this up/comments
+-- - Structure it into segments : command parsing , term parsing...
+-- - hspace, newline thing
+
 import Core.AST
 import Core.Types
 import Data.Euclidean
 import Data.Semiring
-import Lib
+import Lib (Option(..), eitherOptionP, filterToEither)
 
 import Prelude hiding ((*), (+), negate, (-), quot, rem, lcm, gcd)
 
 import Control.Applicative hiding (many, some)
-import Control.Monad
-import Data.Char
-import Data.Void
-import Data.Functor
-import Text.Megaparsec
-import Text.Megaparsec.Debug (dbg)
-import Control.Monad.Combinators.Expr
+import Control.Monad (void, guard)
+import Data.Char (isAlphaNum)
+import Data.Void (Void)
+import Data.Functor (($>))
+import Text.Megaparsec 
+    (Parsec
+    , ParseErrorBundle
+    , parse
+    , many, eof, some, try
+    , eitherP, (<?>), choice
+    , takeWhile1P, sepBy, between)
+--import Text.Megaparsec.Debug (dbg)
+import Control.Monad.Combinators.Expr (Operator(..), makeExprParser)
 import Data.Text hiding (elem, empty, filter, map, foldr)
 
 import qualified Text.Megaparsec.Char       as C
@@ -77,7 +88,6 @@ parens = between (symbol "(") (symbol ")")
 keywords :: [Name]
 keywords = ["\\", "let", "in", "def"
             , "mod", "div"
---            , "factor", "irred"
             , "var" 
             ,"if", "then", "else"
             , "open", "close" , "Zmod"
@@ -115,7 +125,7 @@ pNil = do
 pFancyList :: Parser TTm
 pFancyList = do
     lst <- between (symbol "[") (symbol "]") (pTm `sepBy` symbol ",")
-    return $ foldr TListCons (TLit $ LList Nil) (listToList lst)
+    return $ foldr TListCons (TLit $ LList []) lst
 
 pLit :: Parser TTm
 pLit = try $ choice

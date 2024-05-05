@@ -1,26 +1,23 @@
+--{-# OPTIONS_GHC -Wincomplete-patterns #-}
 {-# LANGUAGE LambdaCase, PatternSynonyms #-}
 
+-- Export everything
 module Core.AST where
 
---import Ring
 import Core.Types
-import Data.Euclidean (rem, Euclidean(..), Field(..))
-import Data.Semiring
+import Data.Euclidean (rem, Euclidean, Field)
+import Data.Semiring (Ring)
 import Data.Text hiding (unwords, foldr)
 import Control.Monad.State
 import Control.Monad.Except
 import Prelude hiding (rem)
---import Ring
 
+-- Universally qualified types for the AST
 type PredType = forall a . Ord a => a -> a -> Bool
-
-type FieldOp = forall a . (Field a) => a -> a -> a -- Num and CNum
+type FieldOp = forall a . (Field a) => a -> a -> a
 type EuclideanOp = forall a . (Euclidean a, Ring a) => a -> a -> a -- Poly and CPoly
 type RingOp = forall a . (Ring a) => a -> a -> a
 type BoolOp = Bool -> Bool -> Bool
-
---ringOp :: Complex Frac -> RingOp -> RingOp
---ringOp m f = \a -> \b -> f _ _ --f (a `rem` m) (b `rem` m)
 
 type Name = Text
 
@@ -33,19 +30,6 @@ data GEnv = GEnv { typeEnv :: TEnv
                  , zmodn :: Maybe (Complex Frac)
                  , zmodf :: Maybe (PolyMulti (Complex Frac))
                  , files :: [String] }
-
-data List a = Nil | Cons a (List a)
-    deriving (Eq, Show)
-
-instance Foldable List where
-    foldr f b Nil         = b
-    foldr f b (Cons x xs) = f x (foldr f b xs)
-
-listToList :: [a] -> List a
-listToList = foldr Cons Nil
-
-listToList' :: List a -> [a]
-listToList' = foldr (:) []
 
 data TTm
     = TVar    Name
@@ -61,22 +45,15 @@ data TTm
     | TBinEucOp BinOp EuclideanOp TTm TTm
     | TBinRingOp BinOp RingOp TTm TTm
     | TPrefix PrefixOp TTm
-    -- Fix
     | TFix TTm
---    deriving Show
 
 data PrefixOp
     = Neg
---    | Factor
---    | Irred
 
 instance Show PrefixOp where
     show = \case
         Neg    -> "-"
---        Factor -> "factor"
---        Irred  -> "irred"
 
--- Abs
 data BinOp
     = And
     | Or
@@ -86,7 +63,6 @@ data BinOp
     | Div
     | IntDiv
     | Mod
-    | Pow
     | Eq
     | Lte
     | Gte
@@ -105,7 +81,6 @@ instance Show BinOp where
         Div     -> "/"
         IntDiv  -> "div"
         Mod     -> "mod"
-        Pow     -> "^"
         Lte     -> "<="
         Gte     -> ">="
         Lt      -> "<"
@@ -113,8 +88,6 @@ instance Show BinOp where
 
 data Type
     = TArr Type Type
---    | TNum
---    | TPoly
     | TCNum
     | TCPoly
     | TBool
@@ -126,10 +99,8 @@ instance Show Type where
     show = \case
         TArr t u -> unwords ["(",show t,"->",show u,")"]
         TCNum    -> "Num"
---        TNum     -> "Number"
         TBool    -> "Bool"
         TCPoly   -> "Poly"
---        TPoly    -> "Poly"
         TTop     -> "Top"
         TList    -> "List"
 
@@ -144,7 +115,7 @@ showTTm = \case
     TLit (LCNum l)      -> show l
     TLit (LCPoly l)     -> show l
     TLit (LTop _)       -> "tt"
-    TLit (LList l)      -> show $ listToList' l
+    TLit (LList l)      -> show l
     TListCons t u       -> unwords [showTTm t,"::",showTTm u]
     TPrefix op t        -> unwords [show op ,showTTm t]
     TBinPred op _ t u   -> unwords [showTTm t,show op,showTTm u]
@@ -152,7 +123,6 @@ showTTm = \case
     TBinEucOp op _ t u  -> unwords [showTTm t,show op,showTTm u]
     TBinRingOp op _ t u -> unwords [showTTm t,show op,showTTm u]
     TBinFieldOp  op _ t u -> unwords [showTTm t,show op,showTTm u]
-    -- Fix
     TFix tm             -> showTTm tm
 
 instance Show TTm where
@@ -160,17 +130,14 @@ instance Show TTm where
 
 data Literal
     = LCNum (Complex Frac)
---    | LNum Frac
---    | --LPoly (PolyMulti Frac)
     | LCPoly (PolyMulti (Complex Frac))
     | LBool Bool
     | LTop ()
-    | LList (List Val)
+    | LList [Val]
 
 data Val
     = VVar Name
     | VApp Val Val
---    | VLam Name Type (Val -> Val)
     | VLam Name Type (Val -> ExceptT String (State GEnv) Val)
     | VLit Literal
     | VIfThenElse Val TTm TTm
@@ -185,12 +152,12 @@ showVal :: Val -> String
 showVal = \case
     VVar n              -> unpack n
     VApp t u            -> unwords ["(",showVal t,showVal u,")"]
-    VLam n t e          -> show t -- "Cannot show function type"
+    VLam n t _          -> unwords ["(\\",unpack n,":",show t,". ___)"] -- we cannot show functions
     VLit (LBool l)      -> show l
     VLit (LCNum l)      -> show l
     VLit (LCPoly l)     -> show l
     VLit (LTop _)       -> "tt"
-    VLit (LList l)      -> show $ listToList' l
+    VLit (LList l)      -> show l
     VIfThenElse b t u   -> unwords ["if",showVal b,"then",showTTm t,"else",showTTm u]
     VPrefix op t        -> unwords [show op ,showVal t]
     VBinPred op _ t u   -> unwords [showVal t,show op,showVal u]
@@ -200,24 +167,13 @@ showVal = \case
     VBinFieldOp  op _ t u -> unwords [showVal t,show op,showVal u]
 
 instance Show Val where
-    show = showVal
+   show = showVal
 
-pattern VList :: List Val -> Val
+pattern VList :: [Val] -> Val
 pattern VList l = VLit (LList l)
-
---pattern TList :: List TTm -> TTm
---pattern TList l = TLit (LList l)
 
 pattern VBool :: Bool -> Val
 pattern VBool b = VLit (LBool b)
-
-{-
-pattern VNum :: Frac -> Val
-pattern VNum n = VLit (LNum n)
-
-pattern VPoly :: PolyMulti Frac -> Val
-pattern VPoly n = VLit (LPoly n)
--}
 
 infixr 6 ...
 infixr 7 ~>
@@ -227,7 +183,6 @@ infixr 7 ~>
 
 (...) :: Val -> Val -> Val
 (...) = VApp
-
 
 tMod :: TTm -> TTm -> TTm
 tMod = TBinEucOp Mod rem
