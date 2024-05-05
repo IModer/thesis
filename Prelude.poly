@@ -123,6 +123,7 @@ def floor(x : Num) := x div 1
 def ceiling(x : Num) := (x div 1) + 1
 
 -- with Fix
+-- TODO more fix functions
 
 def fact := fix ((\rec : Num -> Num , x : Num . if x == 0 then 1 else x * rec (x - 1)))
 
@@ -134,5 +135,6 @@ def powP := fix ((\rec : Poly -> Num -> Poly , p : Poly , x : Num . if x <= 0 th
 
 -- calculates the equation for the tangent line of a polinomial at a given point
 
-def tangent(f x : Poly , a : Num) := (eval [x , a] f) + (eval [x , a] (derivative x f)) * (x - a)
+def tangent(f x : Poly , a : Num) := (evalAt f x a) + (evalAt (derivative x f) x a ) * (x - a)
 
+-- todo tangent plane
