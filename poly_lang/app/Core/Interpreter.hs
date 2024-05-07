@@ -97,7 +97,8 @@ evalTerm env' = \case
         -- so its a VLam
         case m' of
             (VLam _ _ e) -> mfix e
-            _            -> error "unreachable : TFix m, m should have be a (VLam x t e)"
+            (VVar x)     -> return $ VFix (VVar x)
+            _            -> error "unreachable : TFix m, m should have be a (VLam x t e) or (VVar x)"
     TListCons e u -> do
         -- not a lazy list, we force eval e and u
         e' <- evalTerm env' e
@@ -222,6 +223,9 @@ quoteTerm ns = \case
         l' <- quoteTerm ns l
         r' <- quoteTerm ns r
         return $ TBinFieldOp op f l' r'
+    VFix u                       -> do
+        u' <- quoteTerm ns u
+        return $ TFix u'
 
 normalForm :: TTm -> ErrorT GState TTm
 normalForm tm = do

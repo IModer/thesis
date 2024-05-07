@@ -123,7 +123,7 @@ showTTm = \case
     TBinEucOp op _ t u  -> unwords [showTTm t,show op,showTTm u]
     TBinRingOp op _ t u -> unwords [showTTm t,show op,showTTm u]
     TBinFieldOp  op _ t u -> unwords [showTTm t,show op,showTTm u]
-    TFix tm             -> showTTm tm
+    TFix tm             -> unwords ["fix", showTTm tm]
 
 instance Show TTm where
     show = showTTm
@@ -147,6 +147,7 @@ data Val
     | VBinEucOp BinOp EuclideanOp Val Val
     | VBinRingOp BinOp RingOp Val Val
     | VBinFieldOp  BinOp FieldOp Val Val
+    | VFix Val
 
 showVal :: Val -> String
 showVal = \case
@@ -165,6 +166,7 @@ showVal = \case
     VBinEucOp op _ t u  -> unwords [showVal t,show op,showVal u]
     VBinRingOp op _ t u -> unwords [showVal t,show op,showVal u]
     VBinFieldOp  op _ t u -> unwords [showVal t,show op,showVal u]
+    VFix u              -> unwords ["fix", showVal u]
 
 instance Show Val where
    show = showVal
