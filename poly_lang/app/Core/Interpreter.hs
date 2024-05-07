@@ -1,6 +1,6 @@
 --{-# OPTIONS_GHC -Wincomplete-patterns #-}
 {-# LANGUAGE LambdaCase, ViewPatterns #-}
-module Core.Interpreter(runTypedTerm, evalTerm) where
+module Core.Interpreter(runTypedTerm, typeCheckAndEval) where
 
 import Core.AST
 import Core.TypeChecker
@@ -28,6 +28,12 @@ runTypedTerm tm = do
                 (getZmodN env) in do
         _ <- typeCheck [] tm'
         normalForm tm'
+
+typeCheckAndEval :: TTm -> ErrorT GState (Type, Val)
+typeCheckAndEval ttm = do
+    t <- typeCheck [] ttm
+    val <- evalTerm [] ttm
+    return (t , val)
 
 freshName :: [Name] -> Name -> Name
 freshName ns x = if x `elem` ns

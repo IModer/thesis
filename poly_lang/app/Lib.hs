@@ -51,10 +51,13 @@ eitherOptionP a b c = (OLeft <$> a) <|> (OMiddle <$> b) <|> (ORight <$> c)
 
 -- Either utility functions
 
+eitherId :: Either c c -> c
 eitherId = either id id
 
+eitherIdL :: (b -> c) -> Either c b -> c 
 eitherIdL = either id
 
+eitherIdR :: (a -> c) -> Either a c -> c
 eitherIdR f = either f id
 
 -- Utulity for lists

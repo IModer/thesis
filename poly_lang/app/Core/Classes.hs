@@ -12,7 +12,6 @@ import Data.Maybe (isJust)
 
 type ErrorT = ExceptT String
 
-
 type GState = State GEnv
 
 type GStateT = StateT GEnv

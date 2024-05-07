@@ -1,13 +1,23 @@
 {-# LANGUAGE LambdaCase, OverloadedStrings #-}
-import System.Environment
-import System.IO
-import System.Directory
-import System.Clock
---import Control.Monad (unless)
-import Control.Monad.State.Lazy  -- StateT
-import Control.Monad.Except      -- ExceptT
-import Data.Functor.Identity
+{-# OPTIONS_GHC -Wincomplete-patterns #-}
+import System.Environment (getArgs)
+import System.IO (hFlush, stdout)
+import System.Directory (doesFileExist)
+import System.Clock (getTime, Clock(..), diffTimeSpec, toNanoSecs)
+import Control.Monad.State.Lazy 
+    (StateT(..)
+    , evalStateT
+    , lift
+    , unless
+    , get
+    , modify
+    , mapStateT
+    , forM
+    , forM_)
+import Control.Monad.Except (ExceptT(..), throwError, runExceptT)
+import Data.Functor.Identity (runIdentity)
 import Data.List (union)
+import Data.Bifunctor (first)
 
 import Text.Megaparsec.Error
 -- Saját imports
@@ -19,7 +29,7 @@ import Core.AST
 import Core.Types
 import Lib
 import Parser
-import Data.Text hiding (length, map, unlines, uncons, foldl, lines, take) -- swicth this to qualified?
+import qualified Data.Text as T
 
 main :: IO ()
 main = do
@@ -46,8 +56,8 @@ handleArgs xs = case pCommandLineCommand xs of
     -- Ezt lehet ki lehetne absztrahálni
     LoadFileCL files -> do
         (logs, env) <- runStateT (loadFiles files) emptyEnv
+        putStrLn $ welcome ++ "\n"
         forM_ logs putStrLn
-        putStrLn welcome
         runRepl env
 
 -- List of filenames, we open each one and we parse the contents
@@ -66,9 +76,8 @@ loadFiles filenames = do
                     let a = lines s
                     if length a > 10
                         then return ("Loading file : " ++ filename ++ "\n" ++ unlines (take 5 a ++ ["...(" ++ show (length a) ++ ") more lines"]))
-                        else return ("Loading file : " ++ filename ++ "\n" ++ s)
-                    --lift $ putStrLn $ show $ length a
-                else do
+                        else return ("Loading file : " ++ filename ++ "\n" ++ s ++ "\n")
+                else
                     return $ "There is no such file : " ++ filename
 
 welcome :: String
@@ -177,7 +186,6 @@ helpOnTopic = \case
         alltopics :: [Topic]
         alltopics =  enumFrom (toEnum 0)
 
-
 read_ :: IO String
 read_ = do
     putStr "poly> "
@@ -191,16 +199,15 @@ handle' tm_def = case tm_def of
         Right def -> handleTopDef def
 
 handleError' :: ExceptT String GState String -> StateT GEnv IO String
-handleError' a =    let b = either id id <$> runExceptT a in
-                        let c = mapStateT (return . runIdentity) b in c
+handleError' = mapStateT (return . runIdentity) . (either id id <$>) . runExceptT
 
 evalFile :: String -> String -> GStateT IO String
-evalFile filename cs = case parseStringFile filename $ pack cs of
+evalFile filename cs = case parseStringFile filename $ T.pack cs of
     Left a -> return $ errorBundlePretty a
     Right tms_defs -> handleError' $ unlines <$> mapM handle' tms_defs
 
 evalRepl :: String -> GStateT IO String
-evalRepl cs = case parseStringRepl $ pack cs of
+evalRepl cs = case parseStringRepl $ T.pack cs of
     Left a   -> return $ errorBundlePretty a
     Right tm_co_def_b -> 
         case tm_co_def_b of
@@ -212,34 +219,25 @@ evalRepl cs = case parseStringRepl $ pack cs of
                     ORight def  -> handleErrorString (handleTopDef def)
 
 handleErrorShow :: Show a => ErrorT GState a -> GStateT IO String
-handleErrorShow e = 
-    let a = runExceptT e in 
-    mapStateT (\i -> 
-        let (e_tm, env) = runIdentity i in 
-        return (eitherIdL show e_tm,env)) a
+handleErrorShow = mapStateT (return . first (eitherIdL show) . runIdentity) . runExceptT
 
 handleErrorString :: ErrorT GState String -> GStateT IO String
-handleErrorString e =
-    let a = runExceptT e in
-    mapStateT (\i -> 
-        let (e_s, env) = runIdentity i in
-        return (eitherId e_s, env)) a
+handleErrorString = mapStateT (return . first eitherId . runIdentity) . runExceptT
 
 handleTopDef :: TopDef -> ErrorT GState String
-handleTopDef def = case def of
+handleTopDef = \case
     LetDef name ttm -> do
-        t <- typeCheck [] ttm
-        val <- evalTerm [] ttm
+        (t , val) <- typeCheckAndEval ttm
         modify $ insertType (name, t)
         modify $ insertVal (name, val)
-        return ("saved " ++ unpack name ++ " : " ++ show t)
-    VarDef name    -> do
-        modify $ insertType (name, TCPoly)
-        case stringToComplexPoly $ unpack name of
-            Just p -> do
+        return ("saved " ++ T.unpack name ++ " : " ++ show t)
+    VarDef name     -> do
+        case stringToComplexPoly $ T.unpack name of
+            Just p  -> do
+                modify $ insertType (name, TCPoly)
                 modify $ insertVal (name, VCPoly p)
-                return $ unpack name ++ " is now a polinomial variable"
-            Nothing -> throwError (unpack name ++ " cannot be made a polinomial variable")
+                return $ T.unpack name ++ " is now a polinomial variable"
+            Nothing -> throwError (T.unpack name ++ " cannot be made a polinomial variable")
     -- We check if a is a valid VCNum or VCPoly
     OpenDef ttm -> do
         b <- lift isContextOpen
@@ -247,8 +245,7 @@ handleTopDef def = case def of
             then
                 throwError "Error: Context already open, close it with `close`"
             else do
-                _   <- typeCheck [] ttm
-                val <- evalTerm [] ttm
+                (_, val) <- typeCheckAndEval ttm
                 case val of
                     VCNum  n -> do
                         modify $ setZmodN $ Just n
@@ -270,7 +267,7 @@ handleTopDef def = case def of
 
 
 handleCommand :: Command -> GStateT IO String
-handleCommand co = case co of
+handleCommand = \case
     PrintHelp   -> return help
     RunTimed tm -> do  -- run tm and print out measure the time it took
         t1 <- lift $ getTime Monotonic
@@ -278,8 +275,8 @@ handleCommand co = case co of
         t2 <- lift $ getTime Monotonic
         return $ rs ++ "\nrunning it took: " ++ show (toNanoSecs $ diffTimeSpec t1 t2) ++ " ns"
     LoadFile ns -> do
-        modify $ modifyFiles ((union) (map unpack ns)) -- we add the files the user wanted to load 
-        unlines <$> loadFiles (map unpack ns) -- load files 
+        modify $ modifyFiles ((union) (map T.unpack ns)) -- we add the files the user wanted to load 
+        unlines <$> loadFiles (map T.unpack ns) -- load files 
     GetType  tm -> handleErrorShow (typeCheck [] tm)  -- we have to typecheck tm then print out the type
     GetInfo  tp -> return $ helpOnTopic tp
     ReloadFiles -> do
@@ -311,4 +308,4 @@ runStatefulRepl = do
             runStatefulRepl
 -}
     where
-        trimS = unpack . strip . pack
+        trimS = T.unpack . T.strip . T.pack

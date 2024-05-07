@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wincomplete-patterns #-}
 
 module Parser where
 
@@ -34,7 +35,6 @@ import Data.Text hiding (elem, empty, filter, map, foldr)
 import qualified Text.Megaparsec.Char       as C
 import qualified Text.Megaparsec.Char.Lexer as L
 
-
 {- AST : 
 
 --  Ennek a parsolása a pIdent ami bármilyen alphaNumerical Text ami nem keyword
@@ -67,11 +67,18 @@ data Type
 
 -}
 
+------
+-- Basic parsers with whitespace
+------
+
 type Parser = Parsec Void Text
 
 -- hspace does not accept newlines
 ws :: Parser ()
 ws = L.space C.hspace1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
+
+wsh :: Parser ()
+wsh = L.space C.hspace1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme ws
