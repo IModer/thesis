@@ -5,9 +5,13 @@ dist-newstyle
 *.token
 *.pdf
 *.zip
+*.png
+*.drawio
+*.svg
 TételekMics
 Artifacts
 Releases
+szakdolgozat
 
 # deprecated Rust project
 poly_lang_rust
