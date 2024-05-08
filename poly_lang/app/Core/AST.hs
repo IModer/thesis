@@ -49,6 +49,7 @@ data TTm
 
 data PrefixOp
     = Neg
+    deriving (Eq)
 
 instance Show PrefixOp where
     show = \case
@@ -134,6 +135,15 @@ data Literal
     | LBool Bool
     | LTop ()
     | LList [Val]
+
+instance Eq Literal where
+    LCNum c == LCNum c' = c == c'
+    LCPoly p == LCPoly p' = p == p'
+    LBool b == LBool b' = b == b'
+    LTop () == LTop () = True
+    -- List doesnt have Eq anyways
+    LList l == LList l' = False
+    _ == _ = False    
 
 data Val
     = VVar Name

@@ -226,7 +226,7 @@ pBind  = pIdent <|> symbol "_"
 
 pFix :: Parser TTm
 pFix = do
-    void $ symbol "fix"
+    pKeyword "fix"
     t <- pTm
     return $ TFix t
 
@@ -328,14 +328,14 @@ data Command
     | GetType  TTm      -- :t <tm>         | :type <tm>
     | GetInfo  Topic    -- :i <topic>      | :info <topic>
     | ReloadFiles       -- :r              | :reload
-    deriving Show
+    deriving (Show)
 
 data TopDef
     = LetDef Name TTm
     | VarDef Name
     | OpenDef TTm
     | CloseDef
-    deriving Show
+    deriving (Show)
 
 pLetDef :: Parser TopDef
 pLetDef = do
