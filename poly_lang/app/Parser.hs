@@ -394,19 +394,19 @@ data Topic
     | TopDefs
     | Numbers
     | Bools
-    | Dummy
+    | Builtins
+ --   | Dummy
     deriving (Show, Eq, Enum, Bounded)
 
 pInfoTopic :: Parser Topic
-pInfoTopic = choice [ Dummy <$ symbol "Dummy"
-                    , MetaTopic <$ symbol "ListTopics"
+pInfoTopic = choice [ MetaTopic <$ symbol "ListTopics"
                     , Polinomials <$ symbol "Polinomials"
                     , Lists <$ symbol "Lists"
                     , Functions <$ symbol "Functions"
                     , Commands <$ symbol "Commands"
                     , TopDefs <$ symbol "TopDefs"
                     , Numbers <$ symbol "Numbers"
-                    , Bools <$ symbol "Bools"
+                    , Builtins <$ symbol "Builtins"
                     ] <?> "a valid topic, to see all topics run `:i ListTopics`"
 
 pLoadFileCommand :: Parser Command

@@ -28,7 +28,7 @@ tTInt i = TLit $ LCNum (i %% 1 :+ 0 %% 1)
 tTFrac i j= TLit $ LCNum (i %% j :+ 0 %% 1)
 tTBool  = TLit . LBool
 tTtt    = TLit $ LTop ()
-runErrorT e = runIdentity $ runStateT (runExceptT e) emptyEnv
+runErrorT = runIdentity . flip runStateT emptyEnv . runExceptT
 
 -- Custom instance for testing
 instance Eq1 (StateT GEnv Identity) where
@@ -102,7 +102,7 @@ typeCheckT2 = TestCase
         (typeCheck [] (TLit $ LCPoly (x `times` x `plus` four))))
     where
         Just x = stringToComplexPoly "X"
-        Just four = complexToComplexPoly (4 %% 1 :+ 0 %% 1)
+        four = complexToComplexPoly (4 %% 1 :+ 0 %% 1)
 
 -- :t True -- == Bool
 typeCheckT3 :: Test

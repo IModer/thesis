@@ -142,7 +142,7 @@ instance Eq Literal where
     LBool b == LBool b' = b == b'
     LTop () == LTop () = True
     -- List doesnt have Eq anyways
-    LList l == LList l' = False
+    LList _ == LList _ = False
     _ == _ = False    
 
 data Val

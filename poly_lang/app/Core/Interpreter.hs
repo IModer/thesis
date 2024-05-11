@@ -21,7 +21,7 @@ runTypedTerm tm = do
     env <- get
     let tm' = maybe
                 (maybe
-                    tm 
+                    tm
                     (\x -> perculateZmod (Right x) tm)
                     (getZmodF env))
                 (\x -> perculateZmod (Left x) tm)
@@ -106,9 +106,10 @@ evalTerm env' = \case
         -- because of typechecking we know u' : List
         -- so its a VList
         return $ case u' of
-            (VList []) -> VList $ e' : []
-            (VList l)   -> VList $ (e' : l)
-            _            -> error "unreachable : TListCons e u, u should have be a (VList l)"
+            (VList l) -> VList $ (e' : l)
+            -- itt tudjuk x : List
+            (VVar x)  -> VList $ (e' : [VVar x])
+            _         -> error "unreachable : TListCons e u, u should have be a (VList l)"
     TPrefix op e -> do
         e' <- evalTerm env' e
         return $ case op of
@@ -140,11 +141,11 @@ evalTerm env' = \case
             -- We lift VCNum into a poly
             (VCPoly i, VCNum  j) -> let i' = getPolyNumOfVariables i in
                                         if (i' == 1 || i' == 0)
-                                            then return $ VCPoly (i `f` unsafe (complexToComplexPoly j))
+                                            then return $ VCPoly (i `f` (complexToComplexPoly j))
                                             else throwError $ "Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
             (VCNum  i, VCPoly j) -> let j' = getPolyNumOfVariables j in
                                         if (j' == 1 || j' == 0)
-                                            then return $ VCPoly (unsafe (complexToComplexPoly i) `f` j)
+                                            then return $ VCPoly ((complexToComplexPoly i) `f` j)
                                             else throwError $ "Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
             (VCNum  i, VCNum  j) -> return $ VCNum  (i `f` j)
             (a       , b       ) -> return $ VBinEucOp op f a b
@@ -155,8 +156,8 @@ evalTerm env' = \case
             -- e' and u' are in [TCNum, TCPoly]
             -- if they are not literals we have the same case as TBinEucOp
             (VCPoly i, VCPoly j) -> VCPoly (i `f` j)
-            (VCPoly i, VCNum  j) -> VCPoly (i `f` unsafe (complexToComplexPoly j))
-            (VCNum  i, VCPoly j) -> VCPoly (unsafe (complexToComplexPoly i) `f` j)
+            (VCPoly i, VCNum  j) -> VCPoly (i `f` (complexToComplexPoly j))
+            (VCNum  i, VCPoly j) -> VCPoly ((complexToComplexPoly i) `f` j)
             (VCNum  i, VCNum  j) -> VCNum  (i `f` j)
             (a       , b       ) -> VBinRingOp op f a b
     TBinPred op f e u -> do

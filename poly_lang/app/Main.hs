@@ -92,11 +92,56 @@ help = "Usage : poly_lang.exe or poly_lang.exe <command>   \n\
                       \ \t\thelp - prints this help\n\
                       \ \t\tdocs <topic> - Prints help on the specified topic, use `docs topic` to print out the available topics"
 
--- TODO: topic for polinomials functions, főleg eval, subst
 helpOnTopic :: Topic -> String
 helpOnTopic = \case
     MetaTopic   -> "Topics: " ++ alltopicsPretty 
-    Dummy       -> "\n\nThis is the docs of Dummy. Its me i am the dummy :D"
+    Builtins    -> "\n\npoly_lang has several built-in functions that act on polinomials and numbers.\n\n\
+                    \ derivative : Poly -> Poly -> Poly - Takes the derivative of a polinomial in a given \
+                    \ variable. The variable shuld be the first parameter and the polinomial to derivate the second\
+                    \ Examples: \n\n\
+                    \ \tpoly> derivative X (X * Y)\n\
+                    \ \t1 * Y\n\
+                    \ \tpoly> derivative X (X * Y)\n\
+                    \ \t1 * X\n\
+                    \ \tpoly> derivative X (powP X 10 + X * X + 10)\n\
+                    \ \t10 * X^9 + 2 * X\
+                    \ eval : List -> Poly -> Num - Evaluates a given polinomial at a given point.\
+                    \ The given list should have the format [p_0, n_0, p_1, n_1, ...]. Then each variable p_i\
+                    \ will be evaluated to be n_i, if some variable is not specified then it will be evaluated\
+                    \ to be 1.\
+                    \ Examples: \n\n\
+                    \ \tpoly> derivative X (X * Y)\n\
+                    \ \t1 * Y\n\
+                    \ \tpoly> derivative X (X * Y)\n\
+                    \ \t1 * X\n\
+                    \ \tpoly> derivative X (powP X 10 + X * X + 10)\n\
+                    \ \t10 * X^9 + 2 * X\
+                    \ factor : Poly -> List - Factors the given polinomial over Z. \
+                    \ Examples: \n\n\
+                    \ \tpoly> factor (X * X)\n\
+                    \ \t[1 * X,1 * X]\n\
+                    \ \tpoly> factor (X * X + 1)\n\
+                    \ \t[1 * X^2 + 1]\n\
+                    \ \tpoly> factor (X * X - 4)\n\
+                    \ \t[1 * X + -2,1 * X + 2]\
+                    \ irred : Poly -> Bool - Determines if the given polinomial is irreducable in Z  \
+                    \ Examples: \n\n\
+                    \ \tpoly> irred (X * X)  \n\
+                    \ \tFalse\n\
+                    \ \tpoly> factor (X * X)\n\
+                    \ \t[1 * X,1 * X]\n\
+                    \ subst : List -> Poly -> Poly - Substitutes in polinomials for each variable in a polinomial. \
+                    \ The input list has to have the format [p_0, q_0, p_1, q_1, ...].  Then for each p_i variable in\
+                    \ the input polinomial, q_i will be substituted.\
+                    \ Examples: \n\n\
+                    \ \tpoly> subst [X, Y] (X + 1)\n\
+                    \ \t1 * Y + 1\n\
+                    \ real/imag : Num -> Num - Returns the real or imaginary parts of a complex number \
+                    \ Examples: \n\n\
+                    \ \tpoly> real (10 + 2 * i)\n\
+                    \ \t10\n\
+                    \ \tpoly> imag (10 + 2 * i)\n\
+                    \ \t2"
     Polinomials -> "\n\nPolinomals in poly_lang represent complex polinomials.\n\
                     \ To use polinomials you have to declare variable with\
                     \ the `var` keyword followed by a capital english letter\
@@ -119,7 +164,7 @@ helpOnTopic = \case
                     \ \tList"
     Functions   -> "Fuctions can be created with the lambda symtax: \n\n\
                     \ \t \\Name : Type -> Body\n\n\
-                    \where the Name is the name that the bound varable or \"input\" of\
+                    \where the Name is the name that the bound variable or \"input\" of\
                     \ the funtion will have inside the Body and Type is the type of it.\
                     \ They can be \"called\" or applied with writing their arguments\
                     \ after the function. Functions can be nested and if they have the\
@@ -133,7 +178,10 @@ helpOnTopic = \case
                     \ \tpoly> (\\x : Bool . x) True\n\
                     \ \tTrue\n\
                     \ \tpoly> (\\_ : Bool . 3) True\n\
-                    \ \t3"
+                    \ \t3\n\n\
+                    \ Alternatively if we have many agrument, or arguments of the same type\
+                    \ then can be written in a nicer syntax: \n
+                    \ \t \\x_1 y_1 : Type_1 , x_2 y_2 : Type_2 . Body"
     Commands    -> "The available commands are :\n\
                    \\t:h or :help - Prints help message\n\
                    \\t:q or :quit - Exits the program\n\

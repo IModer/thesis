@@ -166,7 +166,7 @@ deriv'' :: Val -> Val -> ErrorT GState Val
 deriv'' (VCPoly i) (VCPoly p) = if loneVarOf i p
                                     then return $ 
                                          VCPoly $ 
-                                         derivativeVar i p
+                                         derivativeByVar i p
                                     else throwError "Runtime error : Variable to take derivative in must be a single variable thats present in the polinome"
 deriv'' _         _           = return $ (VVar (pack "builtin.derivative") ... VVar (pack "x")) ... VVar (pack "p")
 

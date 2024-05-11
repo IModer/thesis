@@ -8,10 +8,11 @@ module Core.Types where
 
 import Lib
 
-import Control.Exception (Exception, displayException, try, evaluate)
+--import Control.Exception (Exception, displayException, try, evaluate)
 
-import Data.Maybe (fromJust, fromMaybe, isJust)
+import Data.Maybe (fromJust, fromMaybe)
 import Data.Ord   (comparing)
+import Data.Tuple (swap)
 import GHC.Natural (wordToNatural)
 
 import Data.Semiring hiding (fromIntegral)
@@ -24,18 +25,18 @@ import Data.Poly.Multi.Semiring
 import qualified Data.Poly.Semiring as PS
 
 -- Show Poly
-import Data.List (intersperse, maximumBy, nub)
+import Data.List (intersperse, maximumBy, nub, uncons)
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Sized as SG
 import qualified Data.Vector.Unboxed.Sized as SU
 import qualified Data.Vector as V
-import qualified Data.Vector.Unboxed as VU
+--import qualified Data.Vector.Unboxed as VU
 
 import Data.Finite
 --import Data.Type.Bool (If)
 --import GHC.TypeLits
 --import Data.Proxy (Proxy(..))
-import Data.Bifunctor (first, second, bimap)
+import Data.Bifunctor (first, bimap)
 
 -- Factor
 import qualified Data.IntMap as IM
@@ -110,23 +111,19 @@ instance Field Frac
 complexFracIsZ :: Complex Frac -> Bool
 complexFracIsZ ((Box r) :+ c) = c == zero && b == one
     where
-        a = numerator r
         b = denominator r
 
 complexFracToZ :: Complex Frac -> Integer
-complexFracToZ ((Box r) :+ c) = a
-    where
-        a = numerator r
-        b = denominator r
+complexFracToZ ((Box r) :+ _) = numerator r
 
 data Complex a = !a :+ !a
     deriving (Eq)
 
 real :: Complex a -> a
-real (x :+ y) = x
+real (x :+ _) = x
 
 imag :: Complex a -> a
-imag (x :+ y) = y
+imag (_ :+ y) = y
 
 instance (Ord a, Semiring a, Eq a) => Ord (Complex a) where
     compare (x :+ y) (x' :+ y') = if y * y' == zero 
@@ -160,7 +157,6 @@ conjQuotAbs w@(x :+ y) = x' :+ negate y'
     where
         Just x' = x `divide` norm w
         Just y' = y `divide` norm w
---        norm = (x `times` x) `plus` (y `times` y)
 
 norm :: Semiring a => Complex a -> a
 norm (x :+ y) = (x `times` x) `plus` (y `times` y)
@@ -209,8 +205,8 @@ newtype PolyMulti a = BoxP (Poly26 a)
 unPolyMulti :: PolyMulti a -> Poly26 a
 unPolyMulti (BoxP p) = p
 
-vars :: [Char]
-vars = ['A'..'Z']
+vars :: Integral a => [(a, Char)]
+vars = zip [1..] ['A'..'Z']
 
 {-
 -}
@@ -235,7 +231,7 @@ instance Show a => Show (PolyMulti a) where
                 showPower i n = showString (showVar n) . showString ("^" ++ show i)
                 -- We Show Vars differently
                 showVar :: Finite n -> String
-                showVar k = maybe "" (:"") $ lookup (i+1) (zip [1..] vars)
+                showVar k = maybe "" (:"") $ lookup (i+1) vars --(zip [1..] vars)
                     where
                         i = getFinite k
 
@@ -262,11 +258,11 @@ instance Euclidean (PolyMulti (Complex Frac)) where
     quot p q = fromMonoPoly (quot p' q') i
         where
             (p',i) = toMonoPoly p
-            (q',j) = toMonoPoly q
+            (q',_) = toMonoPoly q
     rem p q  = fromMonoPoly (rem p' q') i
         where
             (p',i) = toMonoPoly p
-            (q',j) = toMonoPoly q
+            (q',_) = toMonoPoly q
 
 instance Semiring (PolyMulti Frac) where
     zero = unsafe $ fracToPoly (0 %% 1)
@@ -290,34 +286,47 @@ instance Euclidean (PolyMulti Frac) where
     quot p q = fromMonoPoly (quot p' q') i
         where
             (p',i) = toMonoPoly p
-            (q',j) = toMonoPoly q
+            (q',_) = toMonoPoly q
     rem p q  = fromMonoPoly (rem p' q') i
         where
             (p',i) = toMonoPoly p
-            (q',j) = toMonoPoly q
+            (q',_) = toMonoPoly q
 
 wzeros :: [Word]
 wzeros = replicate 26 (0 :: Word)
 
+unsafe :: Maybe a -> a
 unsafe = fromJust
 
 stringToComplexPoly :: String -> Maybe (PolyMulti (Complex Frac))
-stringToComplexPoly s =
+stringToComplexPoly s = do
+    (hs, _) <- uncons s
+    s' <- hs `lookup` (map swap vars)
+    ls <- (SU.fromList $ replaceAtIndex (s' - 1) 1 wzeros :: Maybe (SU.Vector 26 Word))
+    return $ BoxP (monomial ls one :: Poly26 (Complex Frac))
+    {-
     if length s /= 1
         then Nothing -- not a single letter like `var XY`
         else do
             s' <- lookup (head s) (zip vars [1..])
             ls <- (SU.fromList $ replaceAtIndex (s'-1) (1 :: Word) wzeros :: Maybe (SU.Vector 26 Word))
             return $ BoxP (monomial ls ((1 %% 1) :+ (0 %% 1)) :: Poly26 (Complex Frac))
+    -}
 
 stringToPoly :: String -> Maybe (PolyMulti Frac)
-stringToPoly s = 
+stringToPoly s = do
+    (hs, _) <- uncons s
+    s' <- hs `lookup` (map swap vars)
+    ls <- (SU.fromList $ replaceAtIndex (s' - 1) 1 wzeros :: Maybe (SU.Vector 26 Word))
+    return $ BoxP (monomial ls one :: Poly26 Frac)
+{-
     if length s /= 1
         then Nothing -- not a single letter like `var XY`
         else do
-            s' <- lookup (head s) (zip vars [1..])
+            s' <- lookup (head s) vars  --(zip vars [1..])
             ls <- (SU.fromList $ replaceAtIndex (s'-1) (1 :: Word) wzeros :: Maybe (SU.Vector 26 Word))
             return $ BoxP (monomial ls (1 %% 1) :: Poly26 Frac)
+-}
 
 fracToComplexPoly :: Frac -> Maybe (PolyMulti (Complex Frac))
 fracToComplexPoly f = do
@@ -329,17 +338,17 @@ fracToPoly f = do
     zeros <- SU.fromList wzeros :: Maybe (SU.Vector 26 Word)
     return $ BoxP $ toMultiPoly $ V.singleton (zeros , f)
 
-complexToComplexPoly :: Complex Frac -> Maybe (PolyMulti (Complex Frac))
+complexToComplexPoly :: Complex Frac -> PolyMulti (Complex Frac)
 complexToComplexPoly cf = do
-    zeros <- SU.fromList wzeros :: Maybe (SU.Vector 26 Word)
-    return $ BoxP $ toMultiPoly $ V.singleton (zeros , cf)
+    let zeros = unsafe $ SU.fromList wzeros :: (SU.Vector 26 Word)
+    BoxP $ toMultiPoly $ V.singleton (zeros , cf)
 
 fracToComplex :: Frac -> Complex Frac
 fracToComplex = (:+ (0 %% 1))
 
 polyToCPoly :: PolyMulti Frac -> PolyMulti (Complex Frac)
 polyToCPoly (BoxP p) = let a = unMultiPoly p in
-                        let b = V.map (\(a,b) -> (a, b :+ (0 %% 1))) a in 
+                        let b = V.map (\(c,d) -> (c, d :+ (0 %% 1))) a in 
                             BoxP $ toMultiPoly b
 
 getPolyDegree :: PolyMulti a -> Word
@@ -362,9 +371,11 @@ ifMonoWhichVar (BoxP p) = let a = unMultiPoly p in
 -} 
 
 --numOfCoeffs :: PolyMulti a -> V.Vector (V.Vector Word, a)
+{-
 numOfCoeffs (BoxP p) = let a = unMultiPoly p in
                 let usa =  a in
                 V.map (complexFracIsZ . snd) usa
+-}
 
 loneVar :: (Eq a, Semiring a) => PolyMulti a -> Bool
 loneVar (BoxP p) = let a = unMultiPoly p in
@@ -399,19 +410,23 @@ toMonoPoly (BoxP p) =  let a = unMultiPoly p in
                         if null $ whichVars $ BoxP p 
                             then (PS.toPoly $ V.fromList c , Nothing)
                             else 
-                                let [i] = whichVars $ BoxP p in -- if there are multiple variables we fail here
-                                (PS.toPoly $ V.fromList c , Just i)
+                                case whichVars $ BoxP p of
+                                    []     -> error "argument to toMonoPoly, should be a single variable polinomial"
+                                    (i:[]) -> (PS.toPoly $ V.fromList c , Just i)
+                                    _      -> error "argument to toMonoPoly, should be a single variable polinomial"
+--                                let [i] = whichVars $ BoxP p in -- if there are multiple variables we fail here 
 
 fromMonoPoly :: (Eq a, Semiring a) => PolyMono a -> Maybe Integer -> PolyMulti a
 fromMonoPoly p (Just i) = let a = PS.unPoly p in
                         let ls j = unsafe (SU.fromList $ replaceAtIndex i (j :: Word) wzeros :: Maybe (SU.Vector 26 Word)) in
-                        let b = V.map (\(x, n) -> (ls n,x)) $ V.zip a (V.fromList [0..(fromIntegral $ V.length a)]) in
+                        let b = V.map (\(x, n) -> (ls n,x)) $ V.zip a (V.fromList [(0 :: Word)..(fromIntegral $ V.length a)]) in
                         BoxP $ toMultiPoly b
 fromMonoPoly p Nothing  = let a = PS.unPoly p in
                         let ls = unsafe (SU.fromList wzeros :: Maybe (SU.Vector 26 Word)) in
-                        let b = V.map (\(x, n) -> (ls,x)) $ V.zip a (V.fromList [0..(fromIntegral $ V.length a)]) in
+                        let b = V.map (\(x, _) -> (ls,x)) $ V.zip a (V.fromList [(0 :: Word)..(fromIntegral $ V.length a)]) in
                         BoxP $ toMultiPoly b
 
+{-
 testPoly :: PolyMulti Frac
 testPoly =  let Just x = stringToPoly "X" in
             let Just y = stringToPoly "Y" in
@@ -446,31 +461,12 @@ testCPoly2 = let Just x = stringToComplexPoly "X" in
 
 testComplex :: Complex Frac
 testComplex = 4 %% 3 :+ zero
-
 newtype EuclidException = EucExc String
     deriving (Show, Eq)
 
 instance Exception EuclidException where
     displayException (EucExc s) = s
-
-test :: IO()
-test = do 
-    e <- (try (evaluate (testPoly `rem` testPoly2)) :: IO(Either EuclidException (PolyMulti Frac)))
-    case e of
-        Left a -> print a
-        Right a -> print a
-
--- This cannot be done, but isnt needed as we always cast up
-{-
-complexToPoly :: Complex Frac -> Maybe (PolyMulti Frac)
 -}
-
--- Extra polinomial functions on PolyMulti
-
---irred = undefined
-
---ls :: Finite 26 -> Frac -> SG.Vector V.Vector 26 Frac
---ls i f = unsafe $ SG.fromList $ replaceAtIndex (toInteger i) f $ replicate 26 $ 0 %% 1
 
 
 -- subst [X, X* X , Z , X] (X + 2*X * Z + Z) = ((X * X) + 2 * (X * X) + X)  
@@ -484,13 +480,9 @@ subst' xs (BoxP p) = BoxP $ subst p (polys SG.// is xs)
         polys :: SG.Vector V.Vector 26 (Poly26 (Complex Frac))
         polys = unsafe $ 
                 SG.fromList $ 
-                map (unPolyMulti . unsafe . stringToComplexPoly . (: "")) 
+                map (unPolyMulti . unsafe . stringToComplexPoly . (: "")) $
+                map snd $
                 vars
-        {-
-        -}
-
-        --ones :: Semiring a => SG.Vector V.Vector 26 (MultiPoly a)
-        --ones = unsafe $ SG.fromList $ 
 
 -- eval [X, 1 , Z , 0] (X*X+2*X+Z) = 1*1+2*1+0
 --         these should be loneVars of this
@@ -508,17 +500,20 @@ eval' xs (BoxP p) = eval p ((SG.//) ones (is xs))
 deriv' :: (Eq a, Semiring a) => Finite 26 -> PolyMulti a -> PolyMulti a
 deriv' k (BoxP x) = BoxP $ deriv k x
 
-derivativeVar :: (Eq a, Semiring a) => PolyMulti a -> PolyMulti a -> PolyMulti a
-derivativeVar x p = let i = finite $ head $ whichVars x in deriv' i p
+derivativeByVar :: (Eq a, Semiring a) => PolyMulti a -> PolyMulti a -> PolyMulti a
+derivativeByVar x p = let i = finite $ head $ whichVars x in deriv' i p
 
+{-
 derivative :: (Eq a, Semiring a) => Complex Frac -> PolyMulti a -> PolyMulti a
 derivative k = deriv' (finite k')
     where
         ((Box a) :+ _) = k
         k' = numerator a
+-}
 
 -- Factor
 
+{-
 testPolyZx :: Zx.Zx
 testPolyZx = c 10 `m` ((x `m` x) `s` c 4) -- (x `s` c 3) `m` (x `s` c 3) `m` (x `s` c 3) --
     where
@@ -527,6 +522,7 @@ testPolyZx = c 10 `m` ((x `m` x) `s` c 4) -- (x `s` c 3) `m` (x `s` c 3) `m` (x 
         p = Zx.add
         s = (. Zx.negate) . Zx.add
         c = Zx.constant
+-}
 
 polyIsZx :: PolyMulti (Complex Frac) -> Bool
 polyIsZx (BoxP p) = let a = unMultiPoly p in
@@ -567,12 +563,3 @@ factor' x = map (Zx.multiply (Zx.constant a)) $
 
 irred' :: Zx.Zx -> Bool
 irred' = irreducible
-
-{-
-derivative :: (Eq a, Semiring a) => PolyMulti a -> PolyMulti a
-derivative x= go (whichVars x) x
-    where
-        --go :: Finite 26 -> PolyMulti (Complex Frac) -> PolyMulti (Complex Frac)
-        go [] x' = x'
-        go (i:is) x' = go is (deriv' (finite i) x')
--}
