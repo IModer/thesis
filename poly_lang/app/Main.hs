@@ -180,7 +180,7 @@ helpOnTopic = \case
                     \ \tpoly> (\\_ : Bool . 3) True\n\
                     \ \t3\n\n\
                     \ Alternatively if we have many agrument, or arguments of the same type\
-                    \ then can be written in a nicer syntax: \n
+                    \ then can be written in a nicer syntax: \n\
                     \ \t \\x_1 y_1 : Type_1 , x_2 y_2 : Type_2 . Body"
     Commands    -> "The available commands are :\n\
                    \\t:h or :help - Prints help message\n\
