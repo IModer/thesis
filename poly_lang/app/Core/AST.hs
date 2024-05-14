@@ -12,7 +12,7 @@ import Control.Monad.State
 import Control.Monad.Except
 import Prelude hiding (rem)
 
--- Universally qualified types for the AST
+-- Universally qualified types with constrainst for the AST
 type PredType = forall a . Ord a => a -> a -> Bool
 type FieldOp = forall a . (Field a) => a -> a -> a
 type EuclideanOp = forall a . (Euclidean a, Ring a) => a -> a -> a -- Poly and CPoly

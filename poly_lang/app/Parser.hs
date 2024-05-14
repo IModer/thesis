@@ -1,12 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wincomplete-patterns #-}
 
-module Parser where
-
--- TODO :
--- - clean this up/comments
--- - Structure it into segments : command parsing , term parsing...
--- - hspace, newline thing
+module Parser
+    ( parseStringRepl
+    , parseStringFile
+    , pCommandLineCommand
+    , Command(..)
+    , TopDef(..)
+    , Topic(..)
+    , CommandLineCommand(..) ) where
 
 import Core.AST
 import Core.Types
@@ -35,38 +37,6 @@ import Data.Text hiding (elem, empty, filter, map, foldr)
 import qualified Text.Megaparsec.Char       as C
 import qualified Text.Megaparsec.Char.Lexer as L
 
-{- AST : 
-
---  Ennek a parsolása a pIdent ami bármilyen alphaNumerical Text ami nem keyword
-type Name = Text
-
-data TTm
---  pLit és pVariable, ezek a leaf-jei egy Expr-nek
-    = TVar Name             -|
-    | TLit Literal          -|
-
---  pLam
---  pLet
-    | TLam Name Type TTm       -|
-    | TLet Name TTm TTm        -|
-
---  Expr amiket a makeExprParserrel meg lehetne oldani
-    | TApp TTm TTm             -|
-    | TPlus TTm TTm             |
-    | TTimes TTm TTm            |
-    | TAnd  TTm TTm             |
-    | TOr  TTm TTm             -|
-    deriving Show
-
-data Type 
---  pTBase    
-    = TBase
-
---  tExpr
-    | TArr Type Type
-
--}
-
 ------
 -- Basic parsers with whitespace
 ------
@@ -76,9 +46,6 @@ type Parser = Parsec Void Text
 -- hspace does not accept newlines
 ws :: Parser ()
 ws = L.space C.hspace1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
-
-wsh :: Parser ()
-wsh = L.space C.hspace1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme ws
@@ -109,7 +76,6 @@ pKeyword kw = do
     void $ C.string kw
     (takeWhile1P Nothing isAlphaNum *> empty) <|> ws
 
--- TODO : this is magic i should ask what it does
 pIdent :: Parser Name
 pIdent = try $ do
     x <- takeWhile1P Nothing isIdent
@@ -122,13 +88,6 @@ pIdent = try $ do
 pVariable :: Parser TTm
 pVariable = TVar <$> pIdent
 
-{-
-pNil :: Parser TTm
-pNil = do
-    pKeyword "[]"
-    return $ TLit $ LList Nil
--}
-
 pFancyList :: Parser TTm
 pFancyList = do
     lst <- between (symbol "[") (symbol "]") (pTm `sepBy` symbol ",")
@@ -140,7 +99,6 @@ pLit = try $ choice
     , pBool <?> "bool literal"
     , pCompI <?> "complex literal"
     , pTT <?> "tt literal"
---    , pNil <?> "list literal"
     , pFancyList <?> "fancy list literal"]
 
 pTT :: Parser TTm
@@ -171,8 +129,6 @@ operatorTable =
     ] ,
     [
       prefix  "-"          (TPrefix Neg   )
---    , prefix  "factor"     (TPrefix Factor)
---    , prefix  "irred"      (TPrefix Irred )
     , binaryR "::"         (TListCons)
     ] ,
     [
@@ -187,7 +143,6 @@ operatorTable =
     , binaryL "-"   (TBinRingOp Minus  (-) )
     , binaryL "|"   (TBinOpBool Or    (||) )
     , binaryL "&"   (TBinOpBool And   (&&) )
---    , binaryL "^"   (TBinOp Pow   (^)  )
     , binaryL "<="  (TBinPred Lte (<=) )
     , binaryL ">="  (TBinPred Gte (>=) )
     , binaryL "<"   (TBinPred Lt  (<)  )
@@ -207,15 +162,15 @@ postfix n f = Postfix (f <$ symbol n)
 
 -- A Expr is a tree with nodes (+), (*), ... and leafs pLit, or pVariable
 pExprT :: Parser TTm
-pExprT = try $ choice 
+pExprT = try $ choice
     [ 
       {-dbg "parens expr" -} (parens pExpr) <?> "parenthesized expression"
-    , {-dbg "literal"     -} pLit         <?> "literal"
-    , {-dbg "fix"     -}     pFix         <?> "fix expression"
-    , {-dbg "variable"    -} pVariable    <?> "variable"
-    , {-dbg "function"    -} pLam         <?> "function"
-    , {-dbg "let expr"    -} pLet         <?> "let expression"
-    , {-dbg "if  expr"    -} pIfThenElse  <?> "if_then_else expression"
+    , {-dbg "literal"     -} pLit           <?> "literal"
+    , {-dbg "fix"     -}     pFix           <?> "fix expression"
+    , {-dbg "variable"    -} pVariable      <?> "variable"
+    , {-dbg "function"    -} pLam           <?> "function"
+    , {-dbg "let expr"    -} pLet           <?> "let expression"
+    , {-dbg "if  expr"    -} pIfThenElse    <?> "if_then_else expression"
     ]
 
 pExpr :: Parser TTm
@@ -237,21 +192,14 @@ pLamArg = do
     t <- pType
     let xs' = foldr (.) (id) $ map (\x -> TLam x t) xs
     return xs'
-    --return $ map (\x -> TLam x t) xs
-    --return $ TLam x t
 
 pLam :: Parser TTm
 pLam = do
     void $ char '\\'
-    {-
-    x <- pBind
-    void $ char ':'
-    t <- pType
-    -}
     args <- pLamArg `sepBy` char ','
     void $ char '.'
     u <- pTm
-    return $ foldr ($) u args --TLam x t u 
+    return $ foldr ($) u args
 
 pIfThenElse :: Parser TTm
 pIfThenElse = do
@@ -275,17 +223,14 @@ pLet = do
     case ns of
         Just ns' -> return $ TLet x (foldr ($) t ns') u
         Nothing -> return $ TLet x t u
-    --return $ TLet x t u
 
 pBaseType :: Parser Type
 pBaseType = choice
     [ symbol "Num"  $> TCNum
---    , symbol "Num"   $> TNum
---    , symbol "Poly"  $> TPoly
     , symbol "Poly" $> TCPoly
-    , symbol "Bool"  $> TBool
-    , symbol "Top"   $> TTop
-    , symbol "List"  $> TList
+    , symbol "Bool" $> TBool
+    , symbol "Top"  $> TTop
+    , symbol "List" $> TList
     , parens pType
     ]
 
@@ -331,10 +276,10 @@ data Command
     deriving (Show)
 
 data TopDef
-    = LetDef Name TTm
-    | VarDef Name
-    | OpenDef TTm
-    | CloseDef
+    = LetDef Name TTm   -- def x := e
+    | VarDef Name       -- var X
+    | OpenDef TTm       -- open t
+    | CloseDef          -- close
     deriving (Show)
 
 pLetDef :: Parser TopDef
@@ -344,7 +289,6 @@ pLetDef = do
     ns <- optional $ parens (pLamArg `sepBy` char ',')
     void $ symbol ":="
     t <- pTm
-    --void $ symbol ";"  --?
     case ns of
         Just ns' -> return $ LetDef x (foldr ($) t ns')
         Nothing -> return $ LetDef x t
@@ -395,18 +339,17 @@ data Topic
     | Numbers
     | Bools
     | Builtins
- --   | Dummy
     deriving (Show, Eq, Enum, Bounded)
 
 pInfoTopic :: Parser Topic
-pInfoTopic = choice [ MetaTopic <$ symbol "ListTopics"
+pInfoTopic = choice [ MetaTopic   <$ symbol "ListTopics"
                     , Polinomials <$ symbol "Polinomials"
-                    , Lists <$ symbol "Lists"
-                    , Functions <$ symbol "Functions"
-                    , Commands <$ symbol "Commands"
-                    , TopDefs <$ symbol "TopDefs"
-                    , Numbers <$ symbol "Numbers"
-                    , Builtins <$ symbol "Builtins"
+                    , Lists       <$ symbol "Lists"
+                    , Functions   <$ symbol "Functions"
+                    , Commands    <$ symbol "Commands"
+                    , TopDefs     <$ symbol "TopDefs"
+                    , Numbers     <$ symbol "Numbers"
+                    , Builtins    <$ symbol "Builtins"
                     ] <?> "a valid topic, to see all topics run `:i ListTopics`"
 
 pLoadFileCommand :: Parser Command
@@ -442,12 +385,12 @@ pCommand :: Parser Command
 pCommand = do
     void (C.char ':') <?> "a valid command"
     choice
-        [ pSimpleCommand 'h' "help" PrintHelp <?> "a help command"
-        , pRunTimedCommand <?> "benchmark commad"
-        , pGetTypeCommand <?> "types command"
-        , pGetInfoCommand <?> "info command"
-        , pLoadFileCommand <?> "load file command"
-        , pReloadFilesCommand <?> "reload file command"
+        [ pSimpleCommand 'h' "help" PrintHelp   <?> "a help command"
+        , pRunTimedCommand                      <?> "benchmark commad"
+        , pGetTypeCommand                       <?> "types command"
+        , pGetInfoCommand                       <?> "info command"
+        , pLoadFileCommand                      <?> "load file command"
+        , pReloadFilesCommand                   <?> "reload file command"
         ]
 
 pReplLine :: Parser (Either () (Option TTm Command TopDef))
@@ -462,7 +405,7 @@ pRepl = do
 pNewLine :: Parser ()
 pNewLine = void $ ws *> C.newline
 
--- TODO : A newline is always needed for end of file
+-- Note : A newline is always needed for end of file
 pFileLine :: Parser (Option TTm TopDef ())
 pFileLine = do
     tm_def <- eitherOptionP pTm pTopDef pNewLine

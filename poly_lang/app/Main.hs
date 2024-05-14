@@ -35,8 +35,6 @@ main :: IO ()
 main = do
     args <- getArgs
     handleArgs args
-    --env <- handleArgs args
---    runRepl env
 
 handleArgs ::  [String] -> IO ()
 handleArgs [] = do
@@ -45,21 +43,17 @@ handleArgs [] = do
 handleArgs xs = case pCommandLineCommand xs of
     PrintHelpCL      -> do
         putStrLn help
---        return emptyEnv
     NoSuchCommandCl  -> do
         putStrLn "No such command"
         putStrLn help
---        return emptyEnv
     GetInfoCL topic  -> do
         putStrLn $ helpOnTopic topic
---        return emptyEnv
-    -- Ezt lehet ki lehetne absztrahálni
     LoadFileCL files -> do
         (logs, env) <- runStateT (loadFiles files) emptyEnv
         putStrLn $ welcome ++ "\n"
         forM_ logs putStrLn
         runRepl env
-
+        
 -- List of filenames, we open each one and we parse the contents
 loadFiles :: [String] -> GStateT IO [String]
 loadFiles [] = return ["No files loaded"]
@@ -317,19 +311,20 @@ handleTopDef = \case
 handleCommand :: Command -> GStateT IO String
 handleCommand = \case
     PrintHelp   -> return help
-    RunTimed tm -> do  -- run tm and print out measure the time it took
+    -- Run tm and print out the time it took
+    RunTimed tm -> do  
         t1 <- lift $ getTime Monotonic
         rs <- handleErrorShow (runTypedTerm tm)
         t2 <- lift $ getTime Monotonic
         return $ rs ++ "\nrunning it took: " ++ show (toNanoSecs $ diffTimeSpec t1 t2) ++ " ns"
     LoadFile ns -> do
-        modify $ modifyFiles ((union) (map T.unpack ns)) -- we add the files the user wanted to load 
+        modify $ modifyFiles (union (map T.unpack ns)) -- we add the files the user wanted to load 
         unlines <$> loadFiles (map T.unpack ns) -- load files 
     GetType  tm -> handleErrorShow (typeCheck [] tm)  -- we have to typecheck tm then print out the type
     GetInfo  tp -> return $ helpOnTopic tp
     ReloadFiles -> do
         env <- get
-        unlines <$> loadFiles (getFiles env) -- try to reload all files in "cache"
+        unlines <$> loadFiles (getFiles env) -- try to reload all files in GEnv'a files field
 
 print_ :: String -> IO ()
 print_ = putStrLn
@@ -342,18 +337,10 @@ runRepl = evalStateT (do
 
 runStatefulRepl :: GStateT IO ()
 runStatefulRepl = do
-    inp <- lift read_                           -- Lift IO into StateT IO
+    inp <- lift read_                   -- Lift IO into StateT IO
     unless (trimS inp == ":q") $ do
-        tm <- evalRepl inp                      -- Eval could print everything so we dont need to worry about passing things to print_
-        lift $ print_ tm                        -- Lift IO into StateT IO
+        tm <- evalRepl inp
+        lift $ print_ tm                -- Lift IO into StateT IO
         runStatefulRepl
-{-
-        if trimS inp /= "" then do
-            tm <- evalRepl inp                      -- Eval could print everything so we dont need to worry about passing things to print_
-            lift $ print_ tm                        -- Lift IO into StateT IO
-            runStatefulRepl
-        else do
-            runStatefulRepl
--}
     where
         trimS = T.unpack . T.strip . T.pack

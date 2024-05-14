@@ -2,8 +2,8 @@ module Core.Classes where
 
 import Control.Monad.State (State, StateT, get)
 import Control.Monad.Except (ExceptT, throwError)
-import Core.AST   -- innen is
-import Core.Types -- TODO valszeg minden kell
+import Core.AST
+import Core.Types
 import Data.Text hiding (map, all)
 
 import Data.Maybe (isJust)
@@ -88,7 +88,7 @@ realType = (pack "real", TCNum ~> TCNum)
 realVal  = (pack "real", VLam (pack "x") TCNum $ \x ->  
                             real'' x)
 
-listToSubstInp :: [Val] -> Maybe ([(PolyMulti (Complex Frac), PolyMulti (Complex Frac))])
+listToSubstInp :: [Val] -> Maybe [(PolyMulti (Complex Frac), PolyMulti (Complex Frac))]
 listToSubstInp []       = Just []
 listToSubstInp [_]      = Nothing
 listToSubstInp (x:y:xs) = case (x,y) of

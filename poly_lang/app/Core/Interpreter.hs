@@ -43,7 +43,7 @@ freshName ns x = if x `elem` ns
 -- Inserts (mod f) into the AST in the appopriate places
 perculateZmod :: Either (Complex Frac) (PolyMulti (Complex Frac)) -> TTm -> TTm
 perculateZmod f = \case
-    TVar n               -> TVar n --tMod (TVar n) (TLit $ LCNum f)
+    TVar n               -> TVar n
     TApp t u             -> TApp (perculateZmod f t) (perculateZmod f u)
     TLam n t e           -> TLam n t (perculateZmod f e)
     TIfThenElse b t u    -> TIfThenElse (perculateZmod f b) (perculateZmod f t) (perculateZmod f u)
@@ -67,20 +67,21 @@ vLamApp :: Val -> Val -> ErrorT GState Val
 vLamApp (VLam _ _ t) u = t u
 vLamApp t          u   = return $ VApp t u
 
--- 
 evalTerm :: VEnv -> TTm -> ErrorT GState Val
 evalTerm env' = \case
+    -- Just look up n in env or env'
     TVar n     -> do
         env <- get
         maybe   (return $ unsafe $ lookup n $ getVal env)
                 return
                 (lookup n env')
+    -- Apply u to t thanks to hoas
     TApp t u   -> do
         t' <- evalTerm env' t
         u' <- evalTerm env' u
         vLamApp t' u'
     TLam n t e -> do
-        return $ VLam n t (\u -> evalTerm ((n, u):env') e) -- (\u -> evalState (evalTerm ((n, u):env') e) env )
+        return $ VLam n t (\u -> evalTerm ((n, u):env') e)
     TIfThenElse b t u -> do
         b' <- evalTerm env' b
         case b' of
@@ -94,7 +95,7 @@ evalTerm env' = \case
     TFix m         -> do
         m' <- evalTerm env' m
         -- because of typechecking we know m : t ~> t'
-        -- so its a VLam
+        -- so its a VLam or VVar that has type t ~> t'
         case m' of
             (VLam _ _ e) -> mfix e
             (VVar x)     -> return $ VFix (VVar x)
@@ -106,9 +107,9 @@ evalTerm env' = \case
         -- because of typechecking we know u' : List
         -- so its a VList
         return $ case u' of
-            (VList l) -> VList $ (e' : l)
-            -- itt tudjuk x : List
-            (VVar x)  -> VList $ (e' : [VVar x])
+            (VList l) -> VList (e' : l)
+            -- here we know x : List
+            (VVar x)  -> VList (e' : [VVar x])
             _         -> error "unreachable : TListCons e u, u should have be a (VList l)"
     TPrefix op e -> do
         e' <- evalTerm env' e
@@ -140,12 +141,12 @@ evalTerm env' = \case
                                             else throwError $ "Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
             -- We lift VCNum into a poly
             (VCPoly i, VCNum  j) -> let i' = getPolyNumOfVariables i in
-                                        if (i' == 1 || i' == 0)
-                                            then return $ VCPoly (i `f` (complexToComplexPoly j))
+                                        if i' == 1 || i' == 0
+                                            then return $ VCPoly (i `f` complexToComplexPoly j)
                                             else throwError $ "Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
             (VCNum  i, VCPoly j) -> let j' = getPolyNumOfVariables j in
-                                        if (j' == 1 || j' == 0)
-                                            then return $ VCPoly ((complexToComplexPoly i) `f` j)
+                                        if j' == 1 || j' == 0
+                                            then return $ VCPoly (complexToComplexPoly i `f` j)
                                             else throwError $ "Runtime error: (" ++ show op ++ ") can only be called with Poly if it has 1 variable"
             (VCNum  i, VCNum  j) -> return $ VCNum  (i `f` j)
             (a       , b       ) -> return $ VBinEucOp op f a b
@@ -156,14 +157,14 @@ evalTerm env' = \case
             -- e' and u' are in [TCNum, TCPoly]
             -- if they are not literals we have the same case as TBinEucOp
             (VCPoly i, VCPoly j) -> VCPoly (i `f` j)
-            (VCPoly i, VCNum  j) -> VCPoly (i `f` (complexToComplexPoly j))
-            (VCNum  i, VCPoly j) -> VCPoly ((complexToComplexPoly i) `f` j)
+            (VCPoly i, VCNum  j) -> VCPoly (i `f` complexToComplexPoly j)
+            (VCNum  i, VCPoly j) -> VCPoly (complexToComplexPoly i `f` j)
             (VCNum  i, VCNum  j) -> VCNum  (i `f` j)
             (a       , b       ) -> VBinRingOp op f a b
     TBinPred op f e u -> do
         e' <- evalTerm env' e
         u' <- evalTerm env' u
-        -- we have eq for all types but ord only for [Bool, Num, Top]
+        -- we have eq for all types but ord only for types [TBool, TCNum, TTop]
         if op == Eq
             then case (e', u') of
                 (VCPoly i, VCPoly j) -> return $ VBool (i == j)
