@@ -1,6 +1,6 @@
 # Polylang : A basic computer algebra system
 
-Polylang is a basic computer algebra system focusted in complex polinomials, and complex numbers. It also doubles as a function proframming language, with a simple monomorph typesystem.
+Polylang is a basic computer algebra system focusted in complex polinomials, and complex numbers. It also doubles as a function programming language, with a simple monomorph typesystem.
 
 ## Getting started
 
@@ -13,7 +13,7 @@ cabal build
 cabal run
 ```
 
-If you dont want to build it youorself you can check out the [releases](https://github.com/IModer/thesis/releases/) page if there is a build for your machine.
+If you dont want to build it yourself you can check out the [releases](https://github.com/IModer/thesis/releases/) page if there is a build for your machine.
 
 ## Usage
 
